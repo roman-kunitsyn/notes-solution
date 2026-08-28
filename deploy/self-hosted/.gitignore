@@ -6,6 +6,7 @@ volumes/functions/**
 volumes/functions/main/**
 !volumes/functions/main/index.ts
 .env
+.env.production
 test.http
 docker-compose.override.yml
 .supabase-version
