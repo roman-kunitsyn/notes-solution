@@ -133,7 +133,7 @@ echo "Generating checksums..."
 (
   cd "$BACKUP_DIR"
 
-  shasum -a 256 \
+  sha256sum \
     roles.sql \
     schema.sql \
     data.sql \
