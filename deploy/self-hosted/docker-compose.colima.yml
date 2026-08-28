@@ -3,5 +3,10 @@ services:
     volumes:
       - supabase-db-data:/var/lib/postgresql/data
 
+  storage:
+    volumes:
+      - supabase-storage-data:/var/lib/storage
+
 volumes:
   supabase-db-data:
+  supabase-storage-data:
