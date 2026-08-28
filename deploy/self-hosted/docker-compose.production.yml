@@ -1,0 +1,30 @@
+# Linux production overrides.
+#
+# Envoy remains reachable only from the VPS itself. A reverse proxy will
+# terminate HTTPS and forward requests to 127.0.0.1:8000.
+#
+# PostgreSQL pooler ports remain reachable only through localhost, which
+# permits administration through an SSH tunnel without exposing PostgreSQL
+# to the public Internet.
+
+services:
+  api-gw:
+    ports: !override
+      - "127.0.0.1:8000:8000"
+
+  supavisor:
+    ports: !override
+      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:6543:6543"
+
+  db:
+    volumes:
+      - supabase-db-data:/var/lib/postgresql/data
+
+  storage:
+    volumes:
+      - supabase-storage-data:/var/lib/storage
+
+volumes:
+  supabase-db-data:
+  supabase-storage-data:
