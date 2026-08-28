@@ -8,3 +8,4 @@
 .env.*.local
 
 db_config.json
+backups/
