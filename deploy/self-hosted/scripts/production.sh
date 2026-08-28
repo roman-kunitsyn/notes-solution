@@ -7,6 +7,7 @@ cd "$(dirname "$0")/.."
 ENV_FILE=".env.production"
 COMPOSE_FILE="docker-compose.yml"
 PRODUCTION_COMPOSE_FILE="docker-compose.production.yml"
+CADDY_COMPOSE_FILE="docker-compose.caddy.yml"
 
 if [ ! -f "$ENV_FILE" ]; then
   echo "Missing $ENV_FILE" >&2
@@ -111,18 +112,35 @@ logs)
   fi
   ;;
 
+validate-https)
+  docker compose \
+    --env-file "$ENV_FILE" \
+    --file "$COMPOSE_FILE" \
+    --file "$PRODUCTION_COMPOSE_FILE" \
+    --file "$CADDY_COMPOSE_FILE" \
+    config --quiet
+
+  echo "Production HTTPS configuration is valid"
+  ;;
+
+health)
+  scripts/healthcheck.sh
+  ;;
+
 help)
   echo "Usage: scripts/production.sh COMMAND"
   echo
   echo "Commands:"
-  echo "  config    Render the resolved Compose configuration"
-  echo "  validate  Validate configuration and production placeholders"
-  echo "  pull      Pull pinned container images"
-  echo "  up        Start the production stack"
-  echo "  stop      Stop services without deleting data"
-  echo "  restart   Restart services"
-  echo "  ps        Show service status"
-  echo "  logs      Follow logs, optionally for one service"
+  echo "  config            Render the resolved Compose configuration"
+  echo "  validate          Validate configuration and production placeholders"
+  echo "  pull              Pull pinned container images"
+  echo "  up                Start the production stack"
+  echo "  stop              Stop services without deleting data"
+  echo "  restart           Restart services"
+  echo "  ps                Show service status"
+  echo "  logs              Follow logs, optionally for one service"
+  echo "  validate-https    Validate Supabase with the Caddy HTTPS layer"
+  echo "  health            Run the production health check"
   ;;
 
 *)
