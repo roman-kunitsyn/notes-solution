@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Annotated
 
@@ -19,7 +20,14 @@ from notes_cli.client import (
 from notes_cli.client import (
     logout as logout_user,
 )
-from notes_cli.config import ConfigurationError
+from notes_cli.config import (
+    ConfigurationError,
+    Settings,
+    load_settings,
+    remove_settings,
+    save_settings,
+    settings_path,
+)
 from notes_cli.notes import (
     Note,
     create_note,
@@ -28,12 +36,20 @@ from notes_cli.notes import (
     list_notes,
     update_note,
 )
+from notes_cli.session import remove_session
 
 app = typer.Typer(
     name="notes",
     help="Personal notes client for self-hosted Supabase.",
     no_args_is_help=True,
 )
+
+config_app = typer.Typer(
+    help="Manage the Supabase connection configuration.",
+    no_args_is_help=True,
+)
+
+app.add_typer(config_app, name="config")
 
 
 def show_error(error: Exception) -> None:
@@ -411,3 +427,101 @@ def detach(
         raise typer.Exit(code=1) from error
 
     typer.echo(f"Deleted attachment: {filename}")
+
+
+def mask_key(key: str) -> str:
+    if len(key) <= 16:
+        return "********"
+
+    return f"{key[:15]}...{key[-4:]}"
+
+
+@config_app.command("set")
+def set_config_command(
+    url: Annotated[
+        str,
+        typer.Option(
+            "--url",
+            prompt="Supabase URL",
+            help="Public Supabase URL.",
+        ),
+    ],
+    key: Annotated[
+        str | None,
+        typer.Option(
+            "--key",
+            help="Supabase publishable key.",
+        ),
+    ] = None,
+) -> None:
+    """Save the Supabase connection."""
+    if key is None:
+        key = typer.prompt(
+            "Publishable key",
+            hide_input=True,
+        )
+
+    try:
+        settings = Settings(
+            supabase_url=url,
+            publishable_key=key,
+        )
+        save_settings(settings)
+    except ConfigurationError as error:
+        show_error(error)
+        raise typer.Exit(code=2) from error
+
+    # A session belongs to one Supabase deployment. Changing the endpoint
+    # invalidates the association between the saved session and configuration.
+    remove_session()
+
+    typer.echo(f"Configuration saved: {settings_path()}")
+    typer.echo("Existing local session removed; run: notes login")
+
+
+@config_app.command("show")
+def show_config_command() -> None:
+    """Show the effective configuration without revealing the key."""
+    try:
+        settings = load_settings()
+    except ConfigurationError as error:
+        show_error(error)
+        raise typer.Exit(code=1) from error
+
+    typer.echo(f"URL: {settings.supabase_url}")
+    typer.echo(f"Publishable key: {mask_key(settings.publishable_key)}")
+    typer.echo(f"File: {settings_path()}")
+
+    if os.getenv("SUPABASE_URL") or os.getenv("SUPABASE_PUBLISHABLE_KEY"):
+        typer.echo("Environment overrides are active")
+
+
+@config_app.command("path")
+def show_config_path() -> None:
+    """Show the configuration file location."""
+    typer.echo(settings_path())
+
+
+@config_app.command("clear")
+def clear_config_command(
+    yes: Annotated[
+        bool,
+        typer.Option(
+            "--yes",
+            "-y",
+            help="Clear without confirmation.",
+        ),
+    ] = False,
+) -> None:
+    """Remove saved configuration and session."""
+    if not yes and not typer.confirm(
+        "Remove saved configuration and session?",
+        default=False,
+    ):
+        typer.echo("Cancelled")
+        return
+
+    remove_settings()
+    remove_session()
+
+    typer.echo("Configuration and session removed")
