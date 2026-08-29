@@ -48,7 +48,7 @@ def jwt_role(key: str) -> str | None:
 
         role = data.get("role")
         return str(role) if role is not None else None
-    except (ValueError, UnicodeDecodeError, json.JSONDecodeError):
+    except ValueError, UnicodeDecodeError, json.JSONDecodeError:
         return None
 
 
