@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Annotated
 
 import typer
 
@@ -327,17 +328,21 @@ def attachments(note_id: str) -> None:
 def download(
     note_id: str,
     filename: str,
-    output: Path | None = typer.Option(
-        None,
-        "--output",
-        "-o",
-        help="Destination path. Defaults to the attachment filename.",
-    ),
-    force: bool = typer.Option(
-        False,
-        "--force",
-        help="Overwrite an existing local file.",
-    ),
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Destination path. Defaults to the attachment filename.",
+        ),
+    ] = None,
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force",
+            help="Overwrite an existing local file.",
+        ),
+    ] = False,
 ) -> None:
     """Download a private attachment."""
     destination = output.expanduser() if output is not None else Path(filename)
