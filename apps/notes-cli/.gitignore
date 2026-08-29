@@ -8,7 +8,7 @@ Thumbs.db
 .vscode/
 
 # Python bytecode and caches
-__pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/

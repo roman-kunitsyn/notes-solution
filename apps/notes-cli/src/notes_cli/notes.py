@@ -43,17 +43,13 @@ def get_note(note_id: str) -> Note | None:
     client = authenticated_client()
 
     response = (
-        client.table("notes")
-        .select(NOTE_COLUMNS)
-        .eq("id", note_id)
-        .maybe_single()
-        .execute()
+        client.table("notes").select(NOTE_COLUMNS).eq("id", note_id).limit(1).execute()
     )
 
-    if response.data is None:
+    if not response.data:
         return None
 
-    return Note.from_row(response.data)
+    return Note.from_row(response.data[0])
 
 
 def create_note(title: str, content: str) -> Note:
@@ -75,5 +71,51 @@ def create_note(title: str, content: str) -> Note:
 
     if not response.data:
         raise RuntimeError("Supabase did not return the created note")
+
+    return Note.from_row(response.data[0])
+
+
+def update_note(
+    note_id: str,
+    *,
+    title: str | None = None,
+    content: str | None = None,
+) -> Note | None:
+    changes: dict[str, str] = {}
+
+    if title is not None:
+        changes["title"] = title
+
+    if content is not None:
+        changes["content"] = content
+
+    if not changes:
+        raise ValueError("No changes were provided")
+
+    client = authenticated_client()
+
+    response = (
+        client.table("notes")
+        .update(changes)
+        .eq("id", note_id)
+        .select(NOTE_COLUMNS)
+        .execute()
+    )
+
+    if not response.data:
+        return None
+
+    return Note.from_row(response.data[0])
+
+
+def delete_note(note_id: str) -> Note | None:
+    client = authenticated_client()
+
+    response = (
+        client.table("notes").delete().eq("id", note_id).select(NOTE_COLUMNS).execute()
+    )
+
+    if not response.data:
+        return None
 
     return Note.from_row(response.data[0])

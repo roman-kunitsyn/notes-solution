@@ -14,8 +14,10 @@ from notes_cli.config import ConfigurationError
 from notes_cli.notes import (
     Note,
     create_note,
+    delete_note,
     get_note,
     list_notes,
+    update_note,
 )
 
 app = typer.Typer(
@@ -161,6 +163,95 @@ def create(
 
     typer.echo("Note created")
     show_note(note)
+
+
+@app.command()
+def edit(
+    note_id: str,
+    title: str | None = typer.Option(
+        None,
+        help="Replace the note title.",
+    ),
+    content: str | None = typer.Option(
+        None,
+        help="Replace the note content.",
+    ),
+) -> None:
+    """Edit a note owned by the authenticated user."""
+    if title is None and content is None:
+        typer.echo(
+            "Error: provide --title, --content, or both",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    if title is not None:
+        title = title.strip()
+
+        if not title:
+            typer.echo("Error: title cannot be empty", err=True)
+            raise typer.Exit(code=2)
+
+    try:
+        note = update_note(
+            note_id,
+            title=title,
+            content=content,
+        )
+    except Exception as error:
+        show_error(error)
+        raise typer.Exit(code=1) from error
+
+    if note is None:
+        typer.echo("Note not found", err=True)
+        raise typer.Exit(code=1)
+
+    typer.echo("Note updated")
+    show_note(note)
+
+
+@app.command()
+def delete(
+    note_id: str,
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        "-y",
+        help="Delete without asking for confirmation.",
+    ),
+) -> None:
+    """Delete a note owned by the authenticated user."""
+    try:
+        note = get_note(note_id)
+    except Exception as error:
+        show_error(error)
+        raise typer.Exit(code=1) from error
+
+    if note is None:
+        typer.echo("Note not found", err=True)
+        raise typer.Exit(code=1)
+
+    if not yes:
+        confirmed = typer.confirm(
+            f'Delete "{note.title}"?',
+            default=False,
+        )
+
+        if not confirmed:
+            typer.echo("Cancelled")
+            return
+
+    try:
+        deleted = delete_note(note_id)
+    except Exception as error:
+        show_error(error)
+        raise typer.Exit(code=1) from error
+
+    if deleted is None:
+        typer.echo("Note not found", err=True)
+        raise typer.Exit(code=1)
+
+    typer.echo(f"Deleted: {deleted.title}")
 
 
 if __name__ == "__main__":
