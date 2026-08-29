@@ -28,7 +28,7 @@ require_directory "$PROJECT_DIR"
 
 # Attach if the session is already running.
 if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
-  tmux attach-session -t "$SESSION_NAME"
+  caffeinate -dims tmux attach-session -t "$SESSION_NAME"
   exit 0
 fi
 
