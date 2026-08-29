@@ -3,7 +3,10 @@ import json
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import urlsplit
+
+from platformdirs import user_data_path
 
 
 class ConfigurationError(RuntimeError):
@@ -17,6 +20,7 @@ class Settings:
     supabase_publishable_key: str
     bot_base_url: str
     encryption_key: str
+    database_path: Path
 
 
 def jwt_role(key: str) -> str | None:
@@ -139,10 +143,28 @@ def load_settings(
             "Secret and service-role keys are forbidden."
         )
 
+    database_path_value = environment.get(
+        "NOTES_BOT_DATABASE_PATH",
+        "",
+    ).strip()
+
+    database_path = (
+        Path(database_path_value).expanduser()
+        if database_path_value
+        else (
+            user_data_path(
+                appname="notes-bot",
+                appauthor=False,
+            )
+            / "notes-bot.sqlite3"
+        )
+    )
+
     return Settings(
         telegram_bot_token=values["TELEGRAM_BOT_TOKEN"],
         supabase_url=validate_supabase_url(values["SUPABASE_URL"]),
         supabase_publishable_key=publishable_key,
         bot_base_url=validate_bot_base_url(values["NOTES_BOT_BASE_URL"]),
         encryption_key=validate_encryption_key(values["NOTES_BOT_ENCRYPTION_KEY"]),
+        database_path=database_path,
     )

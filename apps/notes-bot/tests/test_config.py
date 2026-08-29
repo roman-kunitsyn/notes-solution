@@ -1,5 +1,6 @@
 import base64
 import json
+from pathlib import Path
 
 import pytest
 
@@ -31,6 +32,7 @@ def valid_environment() -> dict[str, str]:
         "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_test",
         "NOTES_BOT_BASE_URL": "http://127.0.0.1:8080/",
         "NOTES_BOT_ENCRYPTION_KEY": encryption_key(),
+        "NOTES_BOT_DATABASE_PATH": "/tmp/notes-bot.sqlite3",
     }
 
 
@@ -43,6 +45,7 @@ def test_load_settings_reads_configuration() -> None:
         supabase_publishable_key="sb_publishable_test",
         bot_base_url="http://127.0.0.1:8080",
         encryption_key=encryption_key(),
+        database_path=Path("/tmp/notes-bot.sqlite3"),
     )
 
 
@@ -120,3 +123,17 @@ def test_load_settings_rejects_short_encryption_key() -> None:
         match="exactly 32 bytes",
     ):
         load_settings(environment)
+
+
+def test_load_settings_expands_database_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    environment = valid_environment()
+    database_path = tmp_path / "data" / "notes.sqlite3"
+
+    environment["NOTES_BOT_DATABASE_PATH"] = str(database_path)
+
+    settings = load_settings(environment)
+
+    assert settings.database_path == database_path

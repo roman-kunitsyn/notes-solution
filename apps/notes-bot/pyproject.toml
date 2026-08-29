@@ -9,6 +9,7 @@ authors = [
 requires-python = ">=3.14"
 dependencies = [
     "aiogram>=3.23.0,<4",
+    "platformdirs>=4.11.5,<5",
 ]
 
 [project.scripts]
