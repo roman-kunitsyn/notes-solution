@@ -1,0 +1,130 @@
+name: Deploy production
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type DEPLOY_PRODUCTION
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  authorize:
+    name: Confirm deployment
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check confirmation
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          if [ "$CONFIRMATION" != "DEPLOY_PRODUCTION" ]; then
+            echo "Deployment confirmation did not match" >&2
+            exit 1
+          fi
+
+  deploy:
+    name: Deploy exact commit
+    needs: authorize
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production
+
+    steps:
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST_KEY: ${{ secrets.DEPLOY_HOST_KEY }}
+        run: |
+          install -m 700 -d "$HOME/.ssh"
+
+          printf '%s\n' "$DEPLOY_SSH_KEY" \
+            > "$HOME/.ssh/deploy_key"
+
+          chmod 600 "$HOME/.ssh/deploy_key"
+
+          printf '%s\n' "$DEPLOY_HOST_KEY" \
+            > "$HOME/.ssh/known_hosts"
+
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+      - name: Back up current production
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+        run: |
+          ssh \
+            -i "$HOME/.ssh/deploy_key" \
+            -o IdentitiesOnly=yes \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "cd '$DEPLOY_PATH/deploy/self-hosted' &&
+             BACKUP_ROOT=/var/backups/personal-supabase scripts/backup.sh"
+
+      - name: Check out exact commit on server
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          DEPLOY_COMMIT: ${{ github.sha }}
+        run: |
+          ssh \
+            -i "$HOME/.ssh/deploy_key" \
+            -o IdentitiesOnly=yes \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "cd '$DEPLOY_PATH' &&
+             git fetch origin '$DEPLOY_COMMIT' &&
+             git checkout --detach '$DEPLOY_COMMIT'"
+
+      - name: Validate and update containers
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+        run: |
+          ssh \
+            -i "$HOME/.ssh/deploy_key" \
+            -o IdentitiesOnly=yes \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "cd '$DEPLOY_PATH/deploy/self-hosted' &&
+             scripts/production.sh validate &&
+             scripts/production.sh validate-https &&
+             scripts/production.sh pull &&
+             scripts/production.sh up"
+
+      - name: Apply database migrations
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+        run: |
+          ssh \
+            -i "$HOME/.ssh/deploy_key" \
+            -o IdentitiesOnly=yes \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "cd '$DEPLOY_PATH' &&
+             POOLER_TENANT_ID=\$(sed -n 's/^POOLER_TENANT_ID=//p' deploy/self-hosted/.env.production) &&
+             POSTGRES_PASSWORD=\$(sed -n 's/^POSTGRES_PASSWORD=//p' deploy/self-hosted/.env.production) &&
+             DB_URL=\"postgresql://postgres.\${POOLER_TENANT_ID}:\${POSTGRES_PASSWORD}@127.0.0.1:5432/postgres?sslmode=disable\" &&
+             supabase db push --dry-run --db-url \"\$DB_URL\" &&
+             supabase db push --db-url \"\$DB_URL\""
+
+      - name: Run production health check
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+        run: |
+          ssh \
+            -i "$HOME/.ssh/deploy_key" \
+            -o IdentitiesOnly=yes \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "cd '$DEPLOY_PATH/deploy/self-hosted' &&
+             scripts/production.sh health"

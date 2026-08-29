@@ -22,6 +22,7 @@ config)
     --env-file "$ENV_FILE" \
     --file "$COMPOSE_FILE" \
     --file "$PRODUCTION_COMPOSE_FILE" \
+    --file "$CADDY_COMPOSE_FILE" \
     config
   ;;
 
@@ -30,6 +31,7 @@ validate)
     --env-file "$ENV_FILE" \
     --file "$COMPOSE_FILE" \
     --file "$PRODUCTION_COMPOSE_FILE" \
+    --file "$CADDY_COMPOSE_FILE" \
     config --quiet
 
   if grep -Eq \
@@ -59,6 +61,7 @@ pull)
     --env-file "$ENV_FILE" \
     --file "$COMPOSE_FILE" \
     --file "$PRODUCTION_COMPOSE_FILE" \
+    --file "$CADDY_COMPOSE_FILE" \
     pull
   ;;
 
@@ -67,6 +70,7 @@ up)
     --env-file "$ENV_FILE" \
     --file "$COMPOSE_FILE" \
     --file "$PRODUCTION_COMPOSE_FILE" \
+    --file "$CADDY_COMPOSE_FILE" \
     up -d
   ;;
 
@@ -75,6 +79,7 @@ stop)
     --env-file "$ENV_FILE" \
     --file "$COMPOSE_FILE" \
     --file "$PRODUCTION_COMPOSE_FILE" \
+    --file "$CADDY_COMPOSE_FILE" \
     stop
   ;;
 
@@ -83,6 +88,7 @@ restart)
     --env-file "$ENV_FILE" \
     --file "$COMPOSE_FILE" \
     --file "$PRODUCTION_COMPOSE_FILE" \
+    --file "$CADDY_COMPOSE_FILE" \
     restart
   ;;
 
@@ -91,6 +97,7 @@ ps)
     --env-file "$ENV_FILE" \
     --file "$COMPOSE_FILE" \
     --file "$PRODUCTION_COMPOSE_FILE" \
+    --file "$CADDY_COMPOSE_FILE" \
     ps
   ;;
 
@@ -102,12 +109,14 @@ logs)
       --env-file "$ENV_FILE" \
       --file "$COMPOSE_FILE" \
       --file "$PRODUCTION_COMPOSE_FILE" \
+      --file "$CADDY_COMPOSE_FILE" \
       logs --tail=100 --follow "$service"
   else
     docker compose \
       --env-file "$ENV_FILE" \
       --file "$COMPOSE_FILE" \
       --file "$PRODUCTION_COMPOSE_FILE" \
+      --file "$CADDY_COMPOSE_FILE" \
       logs --tail=100 --follow
   fi
   ;;
