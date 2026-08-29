@@ -16,7 +16,7 @@ def test_edit_requires_a_change() -> None:
     result = runner.invoke(app, ["edit", "note-id"])
 
     assert result.exit_code == 2
-    assert "provide --title, --content, or both" in result.output
+    assert "provide --title, --content, or --editor" in result.output
 
 
 def test_create_rejects_empty_title() -> None:

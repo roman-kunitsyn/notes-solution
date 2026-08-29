@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from click import edit as edit_text
 
 from notes_cli.attachments import (
     delete_attachment,
@@ -28,6 +29,7 @@ from notes_cli.config import (
     save_settings,
     settings_path,
 )
+from notes_cli.editor import parse_draft, render_draft
 from notes_cli.notes import (
     Note,
     create_note,
@@ -163,17 +165,58 @@ def show(note_id: str) -> None:
 
 @app.command()
 def create(
-    title: str = typer.Option(
-        ...,
-        prompt=True,
-        help="Note title.",
-    ),
-    content: str = typer.Option(
-        "",
-        help="Note content.",
-    ),
+    title: Annotated[
+        str | None,
+        typer.Option(
+            "--title",
+            help="Note title.",
+        ),
+    ] = None,
+    content: Annotated[
+        str | None,
+        typer.Option(
+            "--content",
+            help="Note content.",
+        ),
+    ] = None,
+    editor: Annotated[
+        bool,
+        typer.Option(
+            "--editor",
+            "-e",
+            help="Compose the note in $EDITOR.",
+        ),
+    ] = False,
 ) -> None:
     """Create a note."""
+    if editor:
+        initial = render_draft(
+            title=title or "New note",
+            content=content or "",
+        )
+
+        edited = edit_text(
+            initial,
+            extension=".md",
+            require_save=True,
+        )
+
+        if edited is None:
+            typer.echo("Cancelled")
+            return
+
+        try:
+            draft = parse_draft(edited)
+        except ValueError as error:
+            show_error(error)
+            raise typer.Exit(code=2) from error
+
+        title = draft.title
+        content = draft.content
+
+    if title is None:
+        title = typer.prompt("Title")
+
     title = title.strip()
 
     if not title:
@@ -181,7 +224,10 @@ def create(
         raise typer.Exit(code=2)
 
     try:
-        note = create_note(title, content)
+        note = create_note(
+            title,
+            content or "",
+        )
     except Exception as error:
         show_error(error)
         raise typer.Exit(code=1) from error
@@ -193,19 +239,66 @@ def create(
 @app.command()
 def edit(
     note_id: str,
-    title: str | None = typer.Option(
-        None,
-        help="Replace the note title.",
-    ),
-    content: str | None = typer.Option(
-        None,
-        help="Replace the note content.",
-    ),
+    title: Annotated[
+        str | None,
+        typer.Option(
+            "--title",
+            help="Replace the note title.",
+        ),
+    ] = None,
+    content: Annotated[
+        str | None,
+        typer.Option(
+            "--content",
+            help="Replace the note content.",
+        ),
+    ] = None,
+    editor: Annotated[
+        bool,
+        typer.Option(
+            "--editor",
+            "-e",
+            help="Edit the note in $EDITOR.",
+        ),
+    ] = False,
 ) -> None:
     """Edit a note owned by the authenticated user."""
+    if editor:
+        try:
+            existing = get_note(note_id)
+        except Exception as error:
+            show_error(error)
+            raise typer.Exit(code=1) from error
+
+        if existing is None:
+            typer.echo("Note not found", err=True)
+            raise typer.Exit(code=1)
+
+        edited = edit_text(
+            render_draft(
+                existing.title,
+                existing.content or "",
+            ),
+            extension=".md",
+            require_save=True,
+        )
+
+        if edited is None:
+            typer.echo("Cancelled")
+            return
+
+        try:
+            draft = parse_draft(edited)
+        except ValueError as error:
+            show_error(error)
+            raise typer.Exit(code=2) from error
+
+        title = draft.title
+        content = draft.content
+
     if title is None and content is None:
         typer.echo(
-            "Error: provide --title, --content, or both",
+            "Error: provide --title, --content, or --editor",
             err=True,
         )
         raise typer.Exit(code=2)

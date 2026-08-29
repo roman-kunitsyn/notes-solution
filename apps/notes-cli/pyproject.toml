@@ -4,7 +4,12 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = ["platformdirs>=4.11.5", "supabase>=2.31.0", "typer>=0.27.2"]
+dependencies = [
+    "click>=8.5.0",
+    "platformdirs>=4.11.5",
+    "supabase>=2.31.0",
+    "typer>=0.27.2",
+]
 
 [dependency-groups]
 dev = ["pytest>=9.1.1", "ruff>=0.16.5"]
