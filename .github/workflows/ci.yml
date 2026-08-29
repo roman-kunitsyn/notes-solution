@@ -190,3 +190,44 @@ jobs:
         if: always()
         working-directory: .
         run: supabase stop --no-backup
+
+  notes-bot:
+    name: Notes bot
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: apps/notes-bot
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.7"
+          enable-cache: true
+          cache-dependency-glob: apps/notes-bot/uv.lock
+
+      - name: Install Python
+        run: uv python install
+
+      - name: Synchronize locked dependencies
+        run: uv sync --locked --all-groups
+
+      - name: Check formatting
+        run: uv run --frozen ruff format --check .
+
+      - name: Run lint checks
+        run: uv run --frozen ruff check .
+
+      - name: Run unit tests
+        run: uv run --frozen pytest
+
+      - name: Verify bot entry point
+        run: uv run --frozen notes-bot --help
+
+      - name: Build package
+        run: uv build
