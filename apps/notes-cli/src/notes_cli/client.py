@@ -1,4 +1,5 @@
 from supabase import Client, create_client
+from supabase_auth.errors import AuthApiError
 
 from notes_cli.config import Settings, load_settings
 from notes_cli.session import (
@@ -53,10 +54,14 @@ def authenticated_client() -> Client:
 
     client = create_notes_client()
 
-    response = client.auth.set_session(
-        tokens.access_token,
-        tokens.refresh_token,
-    )
+    try:
+        response = client.auth.set_session(
+            tokens.access_token,
+            tokens.refresh_token,
+        )
+    except AuthApiError as error:
+        remove_session()
+        raise AuthenticationRequired("Session expired. Run: notes login") from error
 
     if response.session is None:
         remove_session()

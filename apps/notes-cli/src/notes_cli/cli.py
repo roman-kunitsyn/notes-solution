@@ -30,6 +30,7 @@ from notes_cli.config import (
     settings_path,
 )
 from notes_cli.editor import parse_draft, render_draft
+from notes_cli.errors import error_message
 from notes_cli.notes import (
     Note,
     create_note,
@@ -55,7 +56,10 @@ app.add_typer(config_app, name="config")
 
 
 def show_error(error: Exception) -> None:
-    typer.echo(f"Error: {error}", err=True)
+    typer.echo(
+        f"Error: {error_message(error)}",
+        err=True,
+    )
 
 
 @app.callback()
