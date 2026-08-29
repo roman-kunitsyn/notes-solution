@@ -13,6 +13,11 @@ class SessionTokens:
 
 
 def session_path() -> Path:
+    override = os.getenv("NOTES_CLI_CONFIG_DIR")
+
+    if override:
+        return Path(override).expanduser() / "session.json"
+
     return (
         user_config_path(
             appname="notes-cli",

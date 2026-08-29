@@ -20,3 +20,8 @@ notes = "notes_cli.cli:app"
 [build-system]
 requires = ["uv_build>=0.9.0,<0.10.0"]
 build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: requires a running disposable Supabase stack",
+]

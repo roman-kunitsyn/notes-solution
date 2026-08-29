@@ -71,3 +71,25 @@ def test_rejects_non_publishable_keys(
 
 def test_remove_missing_settings_is_safe(tmp_path: Path) -> None:
     remove_settings(tmp_path / "missing.json")
+
+
+def test_accepts_legacy_anon_key() -> None:
+    import base64
+    import json
+
+    payload = (
+        base64.urlsafe_b64encode(json.dumps({"role": "anon"}).encode())
+        .decode()
+        .rstrip("=")
+    )
+
+    key = f"header.{payload}.signature"
+
+    settings = load_settings(
+        environ={
+            "SUPABASE_URL": "http://127.0.0.1:54321",
+            "SUPABASE_PUBLISHABLE_KEY": key,
+        }
+    )
+
+    assert settings.publishable_key == key

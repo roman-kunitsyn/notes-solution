@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 from collections.abc import Mapping
@@ -18,6 +19,11 @@ class ConfigurationError(RuntimeError):
 
 
 def settings_path() -> Path:
+    override = os.getenv("NOTES_CLI_CONFIG_DIR")
+
+    if override:
+        return Path(override).expanduser() / "config.json"
+
     return (
         user_config_path(
             appname="notes-cli",
@@ -27,6 +33,35 @@ def settings_path() -> Path:
     )
 
 
+def jwt_role(key: str) -> str | None:
+    try:
+        parts = key.split(".")
+
+        if len(parts) != 3:
+            return None
+
+        payload = parts[1]
+        padding = "=" * (-len(payload) % 4)
+
+        decoded = base64.urlsafe_b64decode(payload + padding)
+        data = json.loads(decoded)
+
+        role = data.get("role")
+        return str(role) if role is not None else None
+    except (ValueError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+
+
+def is_publishable_key(key: str) -> bool:
+    if key.startswith("sb_publishable_"):
+        return True
+
+    # The local Supabase CLI still exposes the legacy anon JWT.
+    # Decoding here is only a safety check against accidentally supplying a
+    # service-role key. Authorization remains enforced by Supabase and RLS.
+    return jwt_role(key) == "anon"
+
+
 def validate_settings(settings: Settings) -> Settings:
     url = settings.supabase_url.strip().rstrip("/")
     key = settings.publishable_key.strip()
@@ -34,9 +69,9 @@ def validate_settings(settings: Settings) -> Settings:
     if not url.startswith(("http://", "https://")):
         raise ConfigurationError("Supabase URL must start with http:// or https://")
 
-    if not key.startswith("sb_publishable_"):
+    if not is_publishable_key(key):
         raise ConfigurationError(
-            "Expected an sb_publishable_ key. "
+            "Expected an sb_publishable_ key or legacy anon key. "
             "Secret and service-role keys are forbidden."
         )
 
