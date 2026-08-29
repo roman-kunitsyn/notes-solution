@@ -1,3 +1,49 @@
 .env
 .env.*
 !.env.example
+# macOS / editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Python bytecode and caches
+**/__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.hypothesis/
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env/
+
+# Environment and local configuration
+.env
+.env.*
+!.env.example
+
+# Test, coverage, and build artifacts
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+build/
+dist/
+*.egg-info/
+
+# Logs and runtime state
+*.log
+logs/
+tmp/
+temp/
