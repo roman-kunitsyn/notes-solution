@@ -3,7 +3,11 @@ import typer
 from notes_cli.client import (
     AuthenticationRequired,
     current_user,
+)
+from notes_cli.client import (
     login as login_user,
+)
+from notes_cli.client import (
     logout as logout_user,
 )
 from notes_cli.config import ConfigurationError
