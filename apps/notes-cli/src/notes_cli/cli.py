@@ -1,5 +1,13 @@
+from pathlib import Path
+
 import typer
 
+from notes_cli.attachments import (
+    delete_attachment,
+    download_attachment,
+    list_attachments,
+    upload_attachment,
+)
 from notes_cli.client import (
     AuthenticationRequired,
     current_user,
@@ -256,3 +264,145 @@ def delete(
 
 if __name__ == "__main__":
     app()
+
+
+@app.command()
+def attach(
+    note_id: str,
+    file: Path,
+    replace: bool = typer.Option(
+        False,
+        "--replace",
+        help="Replace an existing attachment with the same name.",
+    ),
+) -> None:
+    """Upload a private attachment to a note."""
+    try:
+        note = get_note(note_id)
+
+        if note is None:
+            typer.echo("Note not found", err=True)
+            raise typer.Exit(code=1)
+
+        remote_path = upload_attachment(
+            note_id,
+            file,
+            replace=replace,
+        )
+    except typer.Exit:
+        raise
+    except Exception as error:
+        show_error(error)
+        raise typer.Exit(code=1) from error
+
+    typer.echo(f"Uploaded: {remote_path}")
+
+
+@app.command()
+def attachments(note_id: str) -> None:
+    """List a note's private attachments."""
+    try:
+        note = get_note(note_id)
+
+        if note is None:
+            typer.echo("Note not found", err=True)
+            raise typer.Exit(code=1)
+
+        files = list_attachments(note_id)
+    except typer.Exit:
+        raise
+    except Exception as error:
+        show_error(error)
+        raise typer.Exit(code=1) from error
+
+    if not files:
+        typer.echo("No attachments")
+        return
+
+    for attachment in files:
+        typer.echo(f"{attachment.size:>10}  {attachment.created_at}  {attachment.name}")
+
+
+@app.command()
+def download(
+    note_id: str,
+    filename: str,
+    output: Path | None = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Destination path. Defaults to the attachment filename.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Overwrite an existing local file.",
+    ),
+) -> None:
+    """Download a private attachment."""
+    destination = output.expanduser() if output is not None else Path(filename)
+
+    if destination.exists() and not force:
+        typer.echo(
+            f"Error: destination already exists: {destination}",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    try:
+        note = get_note(note_id)
+
+        if note is None:
+            typer.echo("Note not found", err=True)
+            raise typer.Exit(code=1)
+
+        data = download_attachment(note_id, filename)
+    except typer.Exit:
+        raise
+    except Exception as error:
+        show_error(error)
+        raise typer.Exit(code=1) from error
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(data)
+
+    typer.echo(f"Downloaded: {destination}")
+
+
+@app.command()
+def detach(
+    note_id: str,
+    filename: str,
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        "-y",
+        help="Delete without confirmation.",
+    ),
+) -> None:
+    """Delete a private attachment."""
+    if not yes:
+        confirmed = typer.confirm(
+            f'Delete attachment "{filename}"?',
+            default=False,
+        )
+
+        if not confirmed:
+            typer.echo("Cancelled")
+            return
+
+    try:
+        note = get_note(note_id)
+
+        if note is None:
+            typer.echo("Note not found", err=True)
+            raise typer.Exit(code=1)
+
+        delete_attachment(note_id, filename)
+    except typer.Exit:
+        raise
+    except Exception as error:
+        show_error(error)
+        raise typer.Exit(code=1) from error
+
+    typer.echo(f"Deleted attachment: {filename}")
