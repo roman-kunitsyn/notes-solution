@@ -1,5 +1,4 @@
 import sqlite3
-import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -9,6 +8,11 @@ from cryptography.fernet import (
 )
 
 from notes_bot.database import open_database
+from notes_bot.linking import (
+    TelegramIdentity,
+    current_timestamp,
+    token_hash,
+)
 
 
 class SessionAlreadyLinked(RuntimeError):
@@ -17,6 +21,10 @@ class SessionAlreadyLinked(RuntimeError):
 
 class SessionDecryptionError(RuntimeError):
     """Raised when an encrypted session cannot be decrypted."""
+
+
+class LinkCompletionError(RuntimeError):
+    """Raised when linking cannot be completed."""
 
 
 @dataclass(frozen=True)
@@ -47,10 +55,6 @@ class TokenCipher:
             ) from error
 
         return plaintext.decode("utf-8")
-
-
-def current_timestamp() -> int:
-    return int(time.time())
 
 
 def save_linked_session(
@@ -184,3 +188,121 @@ def delete_linked_session(
         )
 
         return cursor.rowcount == 1
+
+
+def complete_linked_session(
+    database_path: Path,
+    cipher: TokenCipher,
+    *,
+    challenge_token: str,
+    email: str,
+    supabase_user_id: str,
+    refresh_token: str,
+    now: int | None = None,
+) -> TelegramIdentity:
+    normalized_user_id = supabase_user_id.strip()
+    normalized_email = email.strip().casefold()
+
+    if not normalized_user_id:
+        raise ValueError("supabase_user_id must not be empty")
+
+    if not normalized_email:
+        raise ValueError("email must not be empty")
+
+    timestamp = current_timestamp() if now is None else now
+    hashed_token = token_hash(challenge_token)
+    encrypted_refresh_token = cipher.encrypt(refresh_token)
+
+    connection = open_database(database_path)
+
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+
+        challenge = connection.execute(
+            """
+            SELECT
+                telegram_user_id,
+                telegram_chat_id
+            FROM link_challenges
+            WHERE token_hash = ?
+              AND auth_email = ?
+              AND otp_requested_at IS NOT NULL
+              AND failed_attempts < 5
+              AND consumed_at IS NULL
+              AND expires_at > ?
+            """,
+            (
+                hashed_token,
+                normalized_email,
+                timestamp,
+            ),
+        ).fetchone()
+
+        if challenge is None:
+            raise LinkCompletionError(
+                "Link is invalid, expired, or not ready for completion"
+            )
+
+        telegram_user_id = int(challenge["telegram_user_id"])
+
+        connection.execute(
+            """
+            INSERT INTO linked_sessions (
+                telegram_user_id,
+                supabase_user_id,
+                encrypted_refresh_token,
+                created_at,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT (telegram_user_id)
+            DO UPDATE SET
+                supabase_user_id =
+                    excluded.supabase_user_id,
+                encrypted_refresh_token =
+                    excluded.encrypted_refresh_token,
+                updated_at =
+                    excluded.updated_at
+            """,
+            (
+                telegram_user_id,
+                normalized_user_id,
+                encrypted_refresh_token,
+                timestamp,
+                timestamp,
+            ),
+        )
+
+        updated = connection.execute(
+            """
+            UPDATE link_challenges
+            SET consumed_at = ?
+            WHERE token_hash = ?
+              AND consumed_at IS NULL
+            """,
+            (
+                timestamp,
+                hashed_token,
+            ),
+        )
+
+        if updated.rowcount != 1:
+            raise LinkCompletionError("Link was consumed concurrently")
+
+        connection.commit()
+
+        return TelegramIdentity(
+            user_id=telegram_user_id,
+            chat_id=int(challenge["telegram_chat_id"]),
+        )
+    except sqlite3.IntegrityError as error:
+        connection.rollback()
+
+        raise SessionAlreadyLinked(
+            "Supabase account is already linked to another Telegram user"
+        ) from error
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from notes_bot.database import open_database
+from notes_bot.database import database_connection
 from notes_bot.linking import (
     TelegramIdentity,
     consume_link_challenge,
@@ -42,7 +42,7 @@ def test_create_link_challenge_stores_only_hash(
         now=1_000,
     )
 
-    with open_database(path) as connection:
+    with database_connection(path) as connection:
         row = connection.execute(
             """
             SELECT token_hash
@@ -226,7 +226,7 @@ def test_delete_expired_challenges(
 
     assert deleted == 1
 
-    with open_database(path) as connection:
+    with database_connection(path) as connection:
         remaining = connection.execute(
             """
             SELECT COUNT(*)

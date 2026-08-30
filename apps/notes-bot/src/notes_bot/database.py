@@ -1,5 +1,7 @@
 import sqlite3
 import stat
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 SCHEMA_VERSION = 2
@@ -123,6 +125,19 @@ def open_database(
         raise
 
     return connection
+
+
+@contextmanager
+def database_connection(
+    path: Path,
+) -> Iterator[sqlite3.Connection]:
+    connection = open_database(path)
+
+    try:
+        with connection:
+            yield connection
+    finally:
+        connection.close()
 
 
 def database_permissions(path: Path) -> int:

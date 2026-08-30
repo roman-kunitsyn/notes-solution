@@ -7,6 +7,7 @@ from notes_bot.database import (
     MIGRATION_1,
     SCHEMA_VERSION,
     DatabaseVersionError,
+    database_connection,
     database_permissions,
     open_database,
 )
@@ -40,7 +41,7 @@ def test_open_database_creates_schema(
 ) -> None:
     path = tmp_path / "data" / "notes-bot.sqlite3"
 
-    with open_database(path) as connection:
+    with database_connection(path) as connection:
         version = connection.execute("PRAGMA user_version").fetchone()[0]
 
         assert version == SCHEMA_VERSION
@@ -55,10 +56,10 @@ def test_open_database_is_idempotent(
 ) -> None:
     path = tmp_path / "notes-bot.sqlite3"
 
-    with open_database(path):
+    with database_connection(path):
         pass
 
-    with open_database(path) as connection:
+    with database_connection(path) as connection:
         version = connection.execute("PRAGMA user_version").fetchone()[0]
 
     assert version == SCHEMA_VERSION
@@ -69,7 +70,7 @@ def test_open_database_uses_restrictive_permissions(
 ) -> None:
     path = tmp_path / "private" / "notes-bot.sqlite3"
 
-    with open_database(path):
+    with database_connection(path):
         pass
 
     assert database_permissions(path) == 0o600
@@ -81,7 +82,7 @@ def test_open_database_enables_foreign_keys(
 ) -> None:
     path = tmp_path / "notes-bot.sqlite3"
 
-    with open_database(path) as connection:
+    with database_connection(path) as connection:
         enabled = connection.execute("PRAGMA foreign_keys").fetchone()[0]
 
     assert enabled == 1
@@ -108,7 +109,7 @@ def test_link_challenges_has_auth_state(
 ) -> None:
     path = tmp_path / "bot.sqlite3"
 
-    with open_database(path) as connection:
+    with database_connection(path) as connection:
         columns = column_names(
             connection,
             "link_challenges",
@@ -130,7 +131,7 @@ def test_open_database_upgrades_version_one(
     connection.executescript(MIGRATION_1)
     connection.close()
 
-    with open_database(path) as connection:
+    with database_connection(path) as connection:
         version = connection.execute("PRAGMA user_version").fetchone()[0]
 
         columns = column_names(
