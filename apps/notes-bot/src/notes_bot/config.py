@@ -21,6 +21,8 @@ class Settings:
     bot_base_url: str
     encryption_key: str
     database_path: Path
+    http_host: str
+    http_port: int
 
 
 def jwt_role(key: str) -> str | None:
@@ -160,6 +162,26 @@ def load_settings(
         )
     )
 
+    http_host = environment.get(
+        "NOTES_BOT_HTTP_HOST",
+        "127.0.0.1",
+    ).strip()
+
+    if not http_host:
+        raise ConfigurationError("NOTES_BOT_HTTP_HOST must not be empty")
+
+    http_port_value = environment.get(
+        "NOTES_BOT_HTTP_PORT",
+        "8080",
+    ).strip()
+
+    try:
+        http_port = int(http_port_value)
+    except ValueError as error:
+        raise ConfigurationError("NOTES_BOT_HTTP_PORT must be an integer") from error
+
+    if not 1 <= http_port <= 65_535:
+        raise ConfigurationError("NOTES_BOT_HTTP_PORT must be between 1 and 65535")
     return Settings(
         telegram_bot_token=values["TELEGRAM_BOT_TOKEN"],
         supabase_url=validate_supabase_url(values["SUPABASE_URL"]),
@@ -167,4 +189,6 @@ def load_settings(
         bot_base_url=validate_bot_base_url(values["NOTES_BOT_BASE_URL"]),
         encryption_key=validate_encryption_key(values["NOTES_BOT_ENCRYPTION_KEY"]),
         database_path=database_path,
+        http_host=http_host,
+        http_port=http_port,
     )

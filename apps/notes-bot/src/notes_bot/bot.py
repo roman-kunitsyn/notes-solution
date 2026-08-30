@@ -17,6 +17,10 @@ from notes_bot.config import (
     ConfigurationError,
     load_settings,
 )
+from notes_bot.http_server import (
+    HttpServer,
+    create_http_app,
+)
 
 router = Router(name=__name__)
 
@@ -51,13 +55,26 @@ async def run() -> None:
     settings = load_settings()
     dispatcher = create_dispatcher()
 
-    async with Bot(
-        token=settings.telegram_bot_token,
-    ) as bot:
-        await dispatcher.start_polling(
-            bot,
-            allowed_updates=dispatcher.resolve_used_update_types(),
-        )
+    http_server = HttpServer(
+        application=create_http_app(
+            database_path=settings.database_path,
+        ),
+        host=settings.http_host,
+        port=settings.http_port,
+    )
+
+    await http_server.start()
+
+    try:
+        async with Bot(
+            token=settings.telegram_bot_token,
+        ) as bot:
+            await dispatcher.start_polling(
+                bot,
+                allowed_updates=(dispatcher.resolve_used_update_types()),
+            )
+    finally:
+        await http_server.stop()
 
 
 def parse_arguments(

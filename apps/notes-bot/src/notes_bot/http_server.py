@@ -252,3 +252,56 @@ def create_http_app(
     )
 
     return application
+
+
+class HttpServer:
+    def __init__(
+        self,
+        *,
+        application: web.Application,
+        host: str,
+        port: int,
+    ) -> None:
+        self._application = application
+        self._host = host
+        self._port = port
+        self._runner: web.AppRunner | None = None
+        self._site: web.TCPSite | None = None
+
+    @property
+    def started(self) -> bool:
+        return self._runner is not None
+
+    async def start(self) -> None:
+        if self.started:
+            raise RuntimeError("HTTP server is already running")
+
+        runner = web.AppRunner(self._application)
+
+        try:
+            await runner.setup()
+
+            site = web.TCPSite(
+                runner,
+                host=self._host,
+                port=self._port,
+            )
+
+            await site.start()
+        except Exception:
+            await runner.cleanup()
+            raise
+
+        self._runner = runner
+        self._site = site
+
+    async def stop(self) -> None:
+        runner = self._runner
+
+        if runner is None:
+            return
+
+        self._runner = None
+        self._site = None
+
+        await runner.cleanup()

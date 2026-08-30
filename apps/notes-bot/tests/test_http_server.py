@@ -2,12 +2,16 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from aiohttp import ClientSession
 from aiohttp.test_utils import (
     TestClient,
     TestServer,
 )
 
-from notes_bot.http_server import create_http_app
+from notes_bot.http_server import (
+    HttpServer,
+    create_http_app,
+)
 from notes_bot.linking import create_link_challenge
 
 
@@ -119,3 +123,45 @@ async def test_validation_does_not_consume_link(
 
         assert first.status == 200
         assert second.status == 200
+
+
+async def test_http_server_start_and_stop(
+    tmp_path: Path,
+    unused_tcp_port: int,
+) -> None:
+    server = HttpServer(
+        application=create_http_app(database_path=(tmp_path / "bot.sqlite3")),
+        host="127.0.0.1",
+        port=unused_tcp_port,
+    )
+
+    assert server.started is False
+
+    await server.start()
+
+    try:
+        assert server.started is True
+
+        async with ClientSession() as client:
+            response = await client.get(f"http://127.0.0.1:{unused_tcp_port}/health")
+
+            assert response.status == 200
+            assert await response.json() == {"status": "ok"}
+    finally:
+        await server.stop()
+
+    assert server.started is False
+
+
+async def test_http_server_stop_before_start(
+    tmp_path: Path,
+) -> None:
+    server = HttpServer(
+        application=create_http_app(database_path=(tmp_path / "bot.sqlite3")),
+        host="127.0.0.1",
+        port=8080,
+    )
+
+    await server.stop()
+
+    assert server.started is False

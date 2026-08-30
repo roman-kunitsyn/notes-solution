@@ -46,6 +46,8 @@ def test_load_settings_reads_configuration() -> None:
         bot_base_url="http://127.0.0.1:8080",
         encryption_key=encryption_key(),
         database_path=Path("/tmp/notes-bot.sqlite3"),
+        http_host="127.0.0.1",
+        http_port=8080,
     )
 
 
@@ -137,3 +139,36 @@ def test_load_settings_expands_database_path(
     settings = load_settings(environment)
 
     assert settings.database_path == database_path
+
+
+@pytest.mark.parametrize(
+    "port",
+    [
+        "not-a-number",
+        "0",
+        "-1",
+        "65536",
+    ],
+)
+def test_load_settings_rejects_invalid_http_port(
+    port: str,
+) -> None:
+    environment = valid_environment()
+    environment["NOTES_BOT_HTTP_PORT"] = port
+
+    with pytest.raises(
+        ConfigurationError,
+        match="NOTES_BOT_HTTP_PORT",
+    ):
+        load_settings(environment)
+
+
+def test_load_settings_accepts_http_binding() -> None:
+    environment = valid_environment()
+    environment["NOTES_BOT_HTTP_HOST"] = "0.0.0.0"
+    environment["NOTES_BOT_HTTP_PORT"] = "9000"
+
+    settings = load_settings(environment)
+
+    assert settings.http_host == "0.0.0.0"
+    assert settings.http_port == 9000
