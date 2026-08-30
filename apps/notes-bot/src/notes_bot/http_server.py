@@ -1,17 +1,94 @@
 import asyncio
 import re
 from pathlib import Path
+from typing import Protocol
 
 from aiohttp import web
 
 from notes_bot.linking import inspect_link_challenge
+from notes_bot.otp_state import (
+    ChallengeEmailMismatch,
+    InvalidLinkChallenge,
+    OtpAttemptsExceeded,
+    OtpNotRequested,
+    OtpRequestTooSoon,
+)
+from notes_bot.sessions import (
+    LinkCompletionError,
+    SessionAlreadyLinked,
+)
+from notes_bot.supabase_otp import (
+    InvalidOtpCode,
+    OtpDeliveryError,
+    OtpVerificationError,
+)
 
 DATABASE_PATH = web.AppKey(
     "database_path",
     Path,
 )
 
+
+class OtpRequester(Protocol):
+    async def request_code(
+        self,
+        *,
+        token: str,
+        email: str,
+    ) -> object: ...
+
+    async def verify_code(
+        self,
+        *,
+        token: str,
+        email: str,
+        code: str,
+    ) -> object: ...
+
+
+OTP_SERVICE = web.AppKey(
+    "otp_service",
+    OtpRequester,
+)
+
 TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_-]{43}$")
+
+REQUEST_OTP_SUCCESS = {
+    "ok": True,
+    "message": "If the account can be authenticated, a code has been sent.",
+}
+REQUEST_OTP_CLIENT_ERROR = {
+    "ok": False,
+    "error": "Unable to request an authentication code.",
+}
+REQUEST_OTP_SERVICE_ERROR = {
+    "ok": False,
+    "error": "Authentication is temporarily unavailable.",
+}
+VERIFY_OTP_SUCCESS = {
+    "ok": True,
+    "message": "Your account has been linked successfully.",
+}
+VERIFY_OTP_CLIENT_ERROR = {
+    "ok": False,
+    "error": "Unable to verify the authentication code.",
+}
+VERIFY_OTP_INVALID_CODE_ERROR = {
+    "ok": False,
+    "error": "The authentication code is invalid or expired.",
+}
+VERIFY_OTP_ATTEMPTS_ERROR = {
+    "ok": False,
+    "error": "Too many unsuccessful verification attempts.",
+}
+VERIFY_OTP_CONFLICT_ERROR = {
+    "ok": False,
+    "error": "This account cannot be linked.",
+}
+VERIFY_OTP_SERVICE_ERROR = {
+    "ok": False,
+    "error": "Authentication is temporarily unavailable.",
+}
 
 SECURITY_HEADERS = {
     "Cache-Control": "no-store",
@@ -144,6 +221,24 @@ def secure_response(
     )
 
 
+def secure_json_response(
+    data: dict[str, object],
+    *,
+    status: int,
+    headers: dict[str, str] | None = None,
+) -> web.Response:
+    response_headers = dict(SECURITY_HEADERS)
+
+    if headers is not None:
+        response_headers.update(headers)
+
+    return web.json_response(
+        data,
+        status=status,
+        headers=response_headers,
+    )
+
+
 async def health_handler(
     request: web.Request,
 ) -> web.Response:
@@ -154,6 +249,50 @@ async def health_handler(
             "X-Content-Type-Options": "nosniff",
         },
     )
+
+
+def parse_request_otp_payload(payload: object) -> tuple[str, str] | None:
+    if not isinstance(payload, dict):
+        return None
+
+    token = payload.get("token")
+    email = payload.get("email")
+
+    if (
+        not isinstance(token, str)
+        or not token.strip()
+        or TOKEN_PATTERN.fullmatch(token) is None
+    ):
+        return None
+
+    if not isinstance(email, str) or not email.strip():
+        return None
+
+    return token, email
+
+
+def parse_verify_otp_payload(payload: object) -> tuple[str, str, str] | None:
+    if not isinstance(payload, dict):
+        return None
+
+    token = payload.get("token")
+    email = payload.get("email")
+    code = payload.get("code")
+
+    if (
+        not isinstance(token, str)
+        or not token.strip()
+        or TOKEN_PATTERN.fullmatch(token) is None
+    ):
+        return None
+
+    if not isinstance(email, str) or not email.strip():
+        return None
+
+    if not isinstance(code, str) or not code.strip():
+        return None
+
+    return token, email, code
 
 
 async def link_page_handler(
@@ -180,6 +319,142 @@ async def link_style_handler(
     return secure_response(
         text=LINK_STYLE,
         content_type="text/css",
+    )
+
+
+async def request_otp_handler(
+    request: web.Request,
+) -> web.Response:
+    try:
+        payload = await request.json()
+    except ValueError, TypeError, web.HTTPException:
+        return secure_json_response(
+            REQUEST_OTP_CLIENT_ERROR,
+            status=400,
+        )
+
+    parsed = parse_request_otp_payload(payload)
+
+    if parsed is None:
+        return secure_json_response(
+            REQUEST_OTP_CLIENT_ERROR,
+            status=400,
+        )
+
+    token, email = parsed
+
+    try:
+        service = request.app[OTP_SERVICE]
+    except KeyError:
+        return secure_json_response(
+            REQUEST_OTP_SERVICE_ERROR,
+            status=503,
+        )
+
+    try:
+        await service.request_code(
+            token=token,
+            email=email,
+        )
+    except OtpRequestTooSoon as error:
+        return secure_json_response(
+            REQUEST_OTP_CLIENT_ERROR,
+            status=429,
+            headers={"Retry-After": str(error.retry_after)},
+        )
+    except (
+        ChallengeEmailMismatch,
+        InvalidLinkChallenge,
+        OtpAttemptsExceeded,
+        OtpNotRequested,
+        ValueError,
+    ):
+        return secure_json_response(
+            REQUEST_OTP_CLIENT_ERROR,
+            status=400,
+        )
+    except OtpDeliveryError:
+        return secure_json_response(
+            REQUEST_OTP_SERVICE_ERROR,
+            status=503,
+        )
+
+    return secure_json_response(
+        REQUEST_OTP_SUCCESS,
+        status=202,
+    )
+
+
+async def verify_otp_handler(
+    request: web.Request,
+) -> web.Response:
+    try:
+        payload = await request.json()
+    except ValueError, TypeError, web.HTTPException:
+        return secure_json_response(
+            VERIFY_OTP_CLIENT_ERROR,
+            status=400,
+        )
+
+    parsed = parse_verify_otp_payload(payload)
+
+    if parsed is None:
+        return secure_json_response(
+            VERIFY_OTP_CLIENT_ERROR,
+            status=400,
+        )
+
+    token, email, code = parsed
+
+    try:
+        service = request.app[OTP_SERVICE]
+    except KeyError:
+        return secure_json_response(
+            VERIFY_OTP_SERVICE_ERROR,
+            status=503,
+        )
+
+    try:
+        await service.verify_code(
+            token=token,
+            email=email,
+            code=code,
+        )
+    except InvalidOtpCode:
+        return secure_json_response(
+            VERIFY_OTP_INVALID_CODE_ERROR,
+            status=400,
+        )
+    except OtpAttemptsExceeded:
+        return secure_json_response(
+            VERIFY_OTP_ATTEMPTS_ERROR,
+            status=429,
+        )
+    except (
+        ChallengeEmailMismatch,
+        InvalidLinkChallenge,
+        LinkCompletionError,
+        OtpNotRequested,
+        ValueError,
+    ):
+        return secure_json_response(
+            VERIFY_OTP_CLIENT_ERROR,
+            status=400,
+        )
+    except SessionAlreadyLinked:
+        return secure_json_response(
+            VERIFY_OTP_CONFLICT_ERROR,
+            status=409,
+        )
+    except OtpVerificationError:
+        return secure_json_response(
+            VERIFY_OTP_SERVICE_ERROR,
+            status=503,
+        )
+
+    return secure_json_response(
+        VERIFY_OTP_SUCCESS,
+        status=200,
     )
 
 
@@ -224,11 +499,15 @@ async def validate_link_handler(
 def create_http_app(
     *,
     database_path: Path,
+    otp_service: OtpRequester | None = None,
 ) -> web.Application:
     application = web.Application(
         client_max_size=4 * 1024,
     )
     application[DATABASE_PATH] = database_path
+
+    if otp_service is not None:
+        application[OTP_SERVICE] = otp_service
 
     application.router.add_get(
         "/health",
@@ -249,6 +528,14 @@ def create_http_app(
     application.router.add_post(
         "/link/validate",
         validate_link_handler,
+    )
+    application.router.add_post(
+        "/link/request-otp",
+        request_otp_handler,
+    )
+    application.router.add_post(
+        "/link/verify-otp",
+        verify_otp_handler,
     )
 
     return application

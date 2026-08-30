@@ -27,6 +27,8 @@ from notes_bot.http_server import (
     create_http_app,
 )
 from notes_bot.link_service import LinkingService
+from notes_bot.sessions import TokenCipher
+from notes_bot.supabase_otp import SupabaseOtpService
 
 router = Router(name=__name__)
 
@@ -91,11 +93,19 @@ async def run() -> None:
         database_path=settings.database_path,
         base_url=settings.bot_base_url,
     )
+    cipher = TokenCipher(settings.encryption_key)
+    otp_service = SupabaseOtpService(
+        supabase_url=settings.supabase_url,
+        publishable_key=settings.supabase_publishable_key,
+        database_path=settings.database_path,
+        cipher=cipher,
+    )
     dispatcher = create_dispatcher()
 
     http_server = HttpServer(
         application=create_http_app(
             database_path=settings.database_path,
+            otp_service=otp_service,
         ),
         host=settings.http_host,
         port=settings.http_port,
