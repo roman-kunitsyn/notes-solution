@@ -174,3 +174,38 @@ def delete_expired_challenges(
         )
 
         return cursor.rowcount
+
+
+def inspect_link_challenge(
+    database_path: Path,
+    token: str,
+    *,
+    now: int | None = None,
+) -> TelegramIdentity | None:
+    timestamp = current_timestamp() if now is None else now
+    hashed_token = token_hash(token)
+
+    with open_database(database_path) as connection:
+        row = connection.execute(
+            """
+            SELECT
+                telegram_user_id,
+                telegram_chat_id
+            FROM link_challenges
+            WHERE token_hash = ?
+              AND consumed_at IS NULL
+              AND expires_at > ?
+            """,
+            (
+                hashed_token,
+                timestamp,
+            ),
+        ).fetchone()
+
+    if row is None:
+        return None
+
+    return TelegramIdentity(
+        user_id=int(row["telegram_user_id"]),
+        chat_id=int(row["telegram_chat_id"]),
+    )

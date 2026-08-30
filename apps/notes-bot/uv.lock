@@ -468,6 +468,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiogram" },
+    { name = "aiohttp" },
     { name = "cryptography" },
     { name = "platformdirs" },
     { name = "supabase" },
@@ -483,6 +484,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiogram", specifier = ">=3.23.0,<4" },
+    { name = "aiohttp", specifier = ">=3.14.3,<4" },
     { name = "cryptography", specifier = ">=50.0.1,<51" },
     { name = "platformdirs", specifier = ">=4.11.5,<5" },
     { name = "supabase", specifier = ">=2.31.0,<3" },
