@@ -2,7 +2,7 @@ import sqlite3
 import stat
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class DatabaseVersionError(RuntimeError):
@@ -49,6 +49,26 @@ PRAGMA user_version = 1;
 COMMIT;
 """
 
+MIGRATION_2 = """
+BEGIN;
+
+ALTER TABLE link_challenges
+    ADD COLUMN auth_email TEXT;
+
+ALTER TABLE link_challenges
+    ADD COLUMN otp_requested_at INTEGER;
+
+ALTER TABLE link_challenges
+    ADD COLUMN failed_attempts INTEGER
+        NOT NULL
+        DEFAULT 0
+        CHECK (failed_attempts >= 0);
+
+PRAGMA user_version = 2;
+
+COMMIT;
+"""
+
 
 def configure_connection(
     connection: sqlite3.Connection,
@@ -73,6 +93,10 @@ def migrate_database(
 
     if version == 0:
         connection.executescript(MIGRATION_1)
+        version = 1
+
+    if version == 1:
+        connection.executescript(MIGRATION_2)
 
 
 def open_database(

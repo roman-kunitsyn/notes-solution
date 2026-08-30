@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from notes_bot.database import (
+    MIGRATION_1,
     SCHEMA_VERSION,
     DatabaseVersionError,
     database_permissions,
@@ -21,6 +22,15 @@ def table_names(
         WHERE type = 'table'
         """
     ).fetchall()
+
+    return {str(row["name"]) for row in rows}
+
+
+def column_names(
+    connection: sqlite3.Connection,
+    table: str,
+) -> set[str]:
+    rows = connection.execute(f"PRAGMA table_info({table})").fetchall()
 
     return {str(row["name"]) for row in rows}
 
@@ -91,3 +101,46 @@ def test_open_database_rejects_newer_schema(
         match="newer than supported",
     ):
         open_database(path)
+
+
+def test_link_challenges_has_auth_state(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "bot.sqlite3"
+
+    with open_database(path) as connection:
+        columns = column_names(
+            connection,
+            "link_challenges",
+        )
+
+    assert {
+        "auth_email",
+        "otp_requested_at",
+        "failed_attempts",
+    } <= columns
+
+
+def test_open_database_upgrades_version_one(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "bot.sqlite3"
+
+    connection = sqlite3.connect(path)
+    connection.executescript(MIGRATION_1)
+    connection.close()
+
+    with open_database(path) as connection:
+        version = connection.execute("PRAGMA user_version").fetchone()[0]
+
+        columns = column_names(
+            connection,
+            "link_challenges",
+        )
+
+    assert version == SCHEMA_VERSION
+    assert {
+        "auth_email",
+        "otp_requested_at",
+        "failed_attempts",
+    } <= columns
