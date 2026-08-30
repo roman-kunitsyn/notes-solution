@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from notes_bot.database import open_database
+from notes_bot.database import database_connection, open_database
 from notes_bot.linking import (
     TelegramIdentity,
     current_timestamp,
@@ -191,7 +191,7 @@ def get_otp_verification(
     normalized_email = normalize_email(email)
     hashed_token = token_hash(token)
 
-    with open_database(database_path) as connection:
+    with database_connection(database_path) as connection:
         row = connection.execute(
             """
             SELECT
