@@ -7,7 +7,10 @@ from cryptography.fernet import (
     InvalidToken,
 )
 
-from notes_bot.database import open_database
+from notes_bot.database import (
+    database_connection,
+    open_database,
+)
 from notes_bot.linking import (
     TelegramIdentity,
     current_timestamp,
@@ -78,7 +81,7 @@ def save_linked_session(
     encrypted_refresh_token = cipher.encrypt(refresh_token)
 
     try:
-        with open_database(database_path) as connection:
+        with database_connection(database_path) as connection:
             connection.execute(
                 """
                 INSERT INTO linked_sessions (
@@ -116,7 +119,7 @@ def load_linked_session(
     *,
     telegram_user_id: int,
 ) -> LinkedSession | None:
-    with open_database(database_path) as connection:
+    with database_connection(database_path) as connection:
         row = connection.execute(
             """
             SELECT
@@ -154,7 +157,7 @@ def replace_refresh_token(
     timestamp = current_timestamp() if now is None else now
     encrypted_refresh_token = cipher.encrypt(refresh_token)
 
-    with open_database(database_path) as connection:
+    with database_connection(database_path) as connection:
         cursor = connection.execute(
             """
             UPDATE linked_sessions
@@ -178,7 +181,7 @@ def delete_linked_session(
     *,
     telegram_user_id: int,
 ) -> bool:
-    with open_database(database_path) as connection:
+    with database_connection(database_path) as connection:
         cursor = connection.execute(
             """
             DELETE FROM linked_sessions

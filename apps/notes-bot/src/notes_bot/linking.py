@@ -4,7 +4,10 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from notes_bot.database import open_database
+from notes_bot.database import (
+    database_connection,
+    open_database,
+)
 
 DEFAULT_CHALLENGE_TTL = 10 * 60
 
@@ -53,7 +56,7 @@ def create_link_challenge(
     token = secrets.token_urlsafe(32)
     hashed_token = token_hash(token)
 
-    with open_database(database_path) as connection:
+    with database_connection(database_path) as connection:
         # Issuing a new link invalidates all older unused links
         # for the same Telegram user.
         connection.execute(
@@ -164,7 +167,7 @@ def delete_expired_challenges(
 ) -> int:
     timestamp = current_timestamp() if now is None else now
 
-    with open_database(database_path) as connection:
+    with database_connection(database_path) as connection:
         cursor = connection.execute(
             """
             DELETE FROM link_challenges
@@ -185,7 +188,7 @@ def inspect_link_challenge(
     timestamp = current_timestamp() if now is None else now
     hashed_token = token_hash(token)
 
-    with open_database(database_path) as connection:
+    with database_connection(database_path) as connection:
         row = connection.execute(
             """
             SELECT

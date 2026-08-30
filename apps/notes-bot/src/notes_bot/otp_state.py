@@ -47,6 +47,7 @@ class OtpVerification:
     identity: TelegramIdentity
     email: str
     attempts_remaining: int
+    failed_attempts: int
 
 
 def normalize_email(email: str) -> str:
@@ -162,7 +163,7 @@ def release_otp_request(
 ) -> bool:
     hashed_token = token_hash(token)
 
-    with open_database(database_path) as connection:
+    with database_connection(database_path) as connection:
         cursor = connection.execute(
             """
             UPDATE link_challenges
@@ -232,8 +233,9 @@ def get_otp_verification(
             user_id=int(row["telegram_user_id"]),
             chat_id=int(row["telegram_chat_id"]),
         ),
-        email=normalized_email,
+        email=str(row["auth_email"]),
         attempts_remaining=(MAX_OTP_ATTEMPTS - failed_attempts),
+        failed_attempts=failed_attempts,
     )
 
 
