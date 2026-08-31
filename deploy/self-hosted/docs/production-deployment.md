@@ -29,6 +29,9 @@ Production uses:
 
 The macOS-only `docker-compose.colima.yml` must not be used.
 
+Run the commands in this guide from `deploy/self-hosted/` in a trusted,
+up-to-date checkout of this repository.
+
 ## Scope and authoritative references
 
 The local Compose files and scripts above are the project-specific operational
@@ -88,9 +91,14 @@ The Compose configuration binds ports 5432, 6543 and 8000 to `127.0.0.1`.
 
 ## Production secrets
 
-The server requires `.env.production`.
+Create the untracked production environment file from its repository template:
 
-This file:
+```sh
+cp .env.production.example .env.production
+chmod 600 .env.production
+```
+
+The server requires the resulting `.env.production` file. It:
 
 - must not be committed to Git;
 - must have permissions `600`;
@@ -101,7 +109,6 @@ This file:
 Verify:
 
 ```sh
-chmod 600 .env.production
 git check-ignore .env.production
 ```
 
@@ -125,10 +132,10 @@ Set:
 
 ```dotenv
 SMTP_ADMIN_EMAIL=admin@example.com
-SMTP_HOST=smtp.example.com
+SMTP_HOST=replace-before-deployment
 SMTP_PORT=587
-SMTP_USER=replace-with-real-user
-SMTP_PASS=replace-with-real-password
+SMTP_USER=replace-before-deployment
+SMTP_PASS=replace-before-deployment
 SMTP_SENDER_NAME=Personal Supabase
 
 ENABLE_EMAIL_SIGNUP=true

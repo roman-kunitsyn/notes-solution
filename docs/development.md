@@ -20,6 +20,11 @@ There is no root setup, test, lint, or quality-gate command: the root
 [`Makefile`](../Makefile) is currently empty. Start in the component you are
 changing, read its local instructions, and use the commands documented there.
 
+For any file, first follow the root [agent instructions](../AGENTS.md), then
+read each `AGENTS.md` on the path from the repository root to that file. A
+child instruction file adds to or overrides the shared rules for its directory
+and descendants. The current component-specific instruction files are:
+
 - [Notes CLI setup and checks](../apps/notes-cli/README.md)
 - [Notes CLI local instructions](../apps/notes-cli/AGENTS.md)
 - [Notes bot setup and checks](../apps/notes-bot/README.md)
