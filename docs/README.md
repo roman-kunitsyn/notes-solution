@@ -4,6 +4,8 @@
 - [Repository workflow for contributors and agents](../AGENTS.md)
 - [Development guide](development.md)
 - [Product baseline](product.md)
+- [Architecture](architecture.md)
+- [Repository roadmap](../ROADMAP.md)
 
 ## Active components
 

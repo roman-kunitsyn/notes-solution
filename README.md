@@ -12,6 +12,8 @@ not currently supported product capabilities.
 - [Repository workflow for contributors and agents](AGENTS.md)
 - [Development guide](docs/development.md)
 - [Product baseline](docs/product.md)
+- [Architecture](docs/architecture.md)
+- [Roadmap](ROADMAP.md)
 - [Documentation index](docs/README.md)
 - [Notes CLI](apps/notes-cli/README.md)
 - [Notes bot](apps/notes-bot/README.md) — account-linking implementation and
