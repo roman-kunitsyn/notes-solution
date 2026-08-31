@@ -121,7 +121,58 @@ LINK_PAGE = """<!doctype html>
 <body>
   <main>
     <h1>Link Notes account</h1>
-    <p id="status">Checking your secure link…</p>
+    <p
+      id="status"
+      role="status"
+      aria-live="polite"
+    >Checking your secure link...</p>
+
+    <form id="email-form" hidden>
+      <h2>Verify your email</h2>
+      <p>Enter the email address for your existing Notes account.</p>
+      <label for="email-input">Email address</label>
+      <input
+        id="email-input"
+        name="email"
+        type="email"
+        autocomplete="email"
+        required
+      >
+      <button type="submit">Send code</button>
+      <p
+        id="email-message"
+        class="message"
+        role="status"
+        aria-live="polite"
+      ></p>
+    </form>
+
+    <form id="otp-form" hidden>
+      <h2>Enter authentication code</h2>
+      <p>Enter the authentication code from your email.</p>
+      <label for="otp-input">Authentication code</label>
+      <input
+        id="otp-input"
+        name="code"
+        inputmode="numeric"
+        autocomplete="one-time-code"
+        maxlength="6"
+        pattern="[0-9]{6}"
+        required
+      >
+      <button type="submit">Link account</button>
+      <p
+        id="otp-message"
+        class="message"
+        role="status"
+        aria-live="polite"
+      ></p>
+    </form>
+
+    <section id="success-panel" hidden>
+      <h2>Account linked</h2>
+      <p>Your account has been linked successfully. You can return to Telegram.</p>
+    </section>
   </main>
   <script src="/assets/link.js"></script>
 </body>
@@ -129,13 +180,27 @@ LINK_PAGE = """<!doctype html>
 """
 
 
-LINK_SCRIPT = """const statusElement =
+LINK_SCRIPT = """const emailForm =
+  document.getElementById("email-form");
+const emailInput =
+  document.getElementById("email-input");
+const emailMessageElement =
+  document.getElementById("email-message");
+const otpForm =
+  document.getElementById("otp-form");
+const otpInput =
+  document.getElementById("otp-input");
+const otpMessageElement =
+  document.getElementById("otp-message");
+const statusElement =
   document.getElementById("status");
+const successPanel =
+  document.getElementById("success-panel");
 
-const parameters = new URLSearchParams(
+let challengeToken = new URLSearchParams(
   window.location.hash.slice(1)
-);
-const token = parameters.get("token");
+).get("token");
+let submittedEmail = "";
 
 history.replaceState(
   null,
@@ -143,39 +208,288 @@ history.replaceState(
   window.location.pathname
 );
 
+const temporaryMessage =
+  "Authentication is temporarily unavailable. Please try again.";
+const terminalLinkMessage =
+  "This link can no longer be used. Return to Telegram and create a new link.";
+const invalidCodeMessage =
+  "The authentication code is invalid or expired.";
+const approvedServerMessages = new Set([
+  "Unable to verify the authentication code.",
+  invalidCodeMessage,
+  "Too many unsuccessful verification attempts.",
+  "This account cannot be linked.",
+  "Authentication is temporarily unavailable."
+]);
+
+function hide(element) {
+  element.hidden = true;
+}
+
+function show(element) {
+  element.hidden = false;
+}
+
+function setFormDisabled(form, disabled) {
+  for (const control of form.querySelectorAll("input, button")) {
+    control.disabled = disabled;
+  }
+}
+
+function setStatus(message) {
+  statusElement.textContent = message;
+}
+
+function setEmailMessage(message) {
+  emailMessageElement.textContent = message;
+}
+
+function setOtpMessage(message) {
+  otpMessageElement.textContent = message;
+}
+
+function showEmailForm() {
+  hide(otpForm);
+  hide(successPanel);
+  show(emailForm);
+  setStatus("Enter the email address for your existing Notes account.");
+  setEmailMessage("");
+  emailInput.focus();
+}
+
+function showOtpForm(message) {
+  hide(emailForm);
+  hide(successPanel);
+  show(otpForm);
+  setStatus(message);
+  setOtpMessage("");
+  otpInput.focus();
+}
+
+function showTerminalFailure(message) {
+  hide(emailForm);
+  hide(otpForm);
+  hide(successPanel);
+  setStatus(message);
+}
+
+function showSuccess() {
+  hide(emailForm);
+  hide(otpForm);
+  show(successPanel);
+  setStatus("Your account has been linked successfully. You can return to Telegram.");
+}
+
+function safeErrorMessage(payload, fallback) {
+  if (
+    payload &&
+    typeof payload.error === "string" &&
+    approvedServerMessages.has(payload.error)
+  ) {
+    return payload.error;
+  }
+
+  return fallback;
+}
+
+async function postJson(path, data) {
+  const response = await fetch(
+    path,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(data)
+    }
+  );
+
+  let payload = {};
+
+  try {
+    payload = await response.json();
+  } catch {
+    payload = {};
+  }
+
+  return {response, payload};
+}
+
 async function validateLink() {
-  if (!token) {
-    statusElement.textContent =
-      "This linking URL is incomplete.";
+  if (!challengeToken) {
+    showTerminalFailure(terminalLinkMessage);
     return;
   }
 
   try {
-    const response = await fetch(
+    const {response} = await postJson(
       "/link/validate",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({token})
-      }
+      {token: challengeToken}
     );
 
     if (!response.ok) {
-      statusElement.textContent =
-        "This linking URL is invalid or expired.";
+      showTerminalFailure(terminalLinkMessage);
       return;
     }
 
-    statusElement.textContent =
-      "The link is valid. Supabase authentication " +
-      "will be added in the next step.";
+    showEmailForm();
   } catch {
-    statusElement.textContent =
-      "Could not contact the linking service.";
+    setStatus(temporaryMessage);
   }
 }
+
+emailForm.addEventListener(
+  "submit",
+  async (event) => {
+    event.preventDefault();
+
+    if (!challengeToken) {
+      showTerminalFailure(terminalLinkMessage);
+      return;
+    }
+
+    const email = emailInput.value.trim();
+    emailInput.value = email;
+
+    if (!email || !emailInput.checkValidity()) {
+      setEmailMessage("Enter a valid email address.");
+      emailInput.focus();
+      return;
+    }
+
+    setFormDisabled(emailForm, true);
+    setStatus("Requesting authentication code...");
+    setEmailMessage("");
+
+    try {
+      const {response} = await postJson(
+        "/link/request-otp",
+        {
+          token: challengeToken,
+          email
+        }
+      );
+
+      if (response.status === 202) {
+        submittedEmail = email;
+        showOtpForm(
+          "If the account can be authenticated, a code has been sent."
+        );
+        setFormDisabled(emailForm, false);
+        return;
+      }
+
+      if (response.status === 429) {
+        const retryAfter = response.headers.get("Retry-After");
+        const waitMessage = retryAfter
+          ? `Please wait ${retryAfter} seconds before requesting another code.`
+          : "Please wait before requesting another code.";
+
+        setStatus(waitMessage);
+        setFormDisabled(emailForm, false);
+        return;
+      }
+
+      if (response.status === 503) {
+        setStatus(temporaryMessage);
+        setFormDisabled(emailForm, false);
+        return;
+      }
+
+      showTerminalFailure(terminalLinkMessage);
+    } catch {
+      setStatus(temporaryMessage);
+      setFormDisabled(emailForm, false);
+    }
+  }
+);
+
+otpForm.addEventListener(
+  "submit",
+  async (event) => {
+    event.preventDefault();
+
+    if (!challengeToken || !submittedEmail) {
+      showTerminalFailure(terminalLinkMessage);
+      return;
+    }
+
+    const code = otpInput.value.trim();
+    otpInput.value = code;
+
+    if (!/^[0-9]{6}$/.test(code)) {
+      setOtpMessage(invalidCodeMessage);
+      otpInput.focus();
+      return;
+    }
+
+    setFormDisabled(otpForm, true);
+    setStatus("Verifying authentication code...");
+    setOtpMessage("");
+
+    try {
+      const {response, payload} = await postJson(
+        "/link/verify-otp",
+        {
+          token: challengeToken,
+          email: submittedEmail,
+          code
+        }
+      );
+
+      if (response.status === 200) {
+        otpInput.value = "";
+        emailInput.value = "";
+        challengeToken = "";
+        submittedEmail = "";
+        showSuccess();
+        setFormDisabled(otpForm, false);
+        return;
+      }
+
+      if (response.status === 400) {
+        const message = safeErrorMessage(
+          payload,
+          "Unable to verify the authentication code."
+        );
+
+        if (message === invalidCodeMessage) {
+          otpInput.value = "";
+          setOtpMessage(message);
+          setFormDisabled(otpForm, false);
+          otpInput.focus();
+          return;
+        }
+
+        showTerminalFailure(terminalLinkMessage);
+        return;
+      }
+
+      if (response.status === 409) {
+        showTerminalFailure("This account cannot be linked.");
+        return;
+      }
+
+      if (response.status === 429) {
+        showTerminalFailure("Too many unsuccessful verification attempts.");
+        return;
+      }
+
+      if (response.status === 503) {
+        setStatus(
+          safeErrorMessage(payload, "Authentication is temporarily unavailable.")
+        );
+        setFormDisabled(otpForm, false);
+        return;
+      }
+
+      showTerminalFailure(terminalLinkMessage);
+    } catch {
+      setStatus(temporaryMessage);
+      setFormDisabled(otpForm, false);
+    }
+  }
+);
 
 void validateLink();
 """
@@ -203,6 +517,58 @@ main {
 
 h1 {
   margin-top: 0;
+}
+
+h2 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1.125rem;
+}
+
+form,
+section {
+  display: grid;
+  gap: 0.75rem;
+}
+
+[hidden] {
+  display: none;
+}
+
+label {
+  font-weight: 600;
+}
+
+input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid #b9c0cc;
+  border-radius: 0.5rem;
+  font: inherit;
+}
+
+button {
+  min-height: 2.75rem;
+  padding: 0.625rem 1rem;
+  border: 0;
+  border-radius: 0.5rem;
+  font: inherit;
+  font-weight: 700;
+  color: white;
+  background: #1f6feb;
+  cursor: pointer;
+}
+
+button:disabled,
+input:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.message {
+  min-height: 1.5rem;
+  margin: 0;
 }
 """
 

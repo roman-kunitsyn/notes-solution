@@ -152,6 +152,83 @@ async def test_link_page_has_security_headers(
         assert "default-src 'none'" in (response.headers["Content-Security-Policy"])
 
 
+async def test_link_page_contains_accessible_email_and_otp_forms(
+    tmp_path: Path,
+) -> None:
+    async with http_test_client(tmp_path / "bot.sqlite3") as client:
+        response = await client.get("/link")
+        text = await response.text()
+
+    assert response.status == 200
+    assert 'id="email-form"' in text
+    assert 'for="email-input"' in text
+    assert 'id="email-input"' in text
+    assert 'type="email"' in text
+    assert 'autocomplete="email"' in text
+    assert 'id="otp-form"' in text
+    assert 'for="otp-input"' in text
+    assert 'id="otp-input"' in text
+    assert 'inputmode="numeric"' in text
+    assert 'autocomplete="one-time-code"' in text
+    assert 'maxlength="6"' in text
+    assert 'pattern="[0-9]{6}"' in text
+    assert 'aria-live="polite"' in text
+    assert 'role="status"' in text
+
+
+async def test_link_page_uses_external_script_without_inline_handlers(
+    tmp_path: Path,
+) -> None:
+    async with http_test_client(tmp_path / "bot.sqlite3") as client:
+        response = await client.get("/link")
+        text = await response.text()
+
+    lowered = text.lower()
+
+    assert response.status == 200
+    assert '<script src="/assets/link.js"></script>' in text
+    assert lowered.count("<script") == 1
+    assert "onclick=" not in lowered
+    assert "onsubmit=" not in lowered
+    assert "onchange=" not in lowered
+    assert "oninput=" not in lowered
+
+
+async def test_link_script_references_otp_endpoints_after_fragment_removal(
+    tmp_path: Path,
+) -> None:
+    async with http_test_client(tmp_path / "bot.sqlite3") as client:
+        response = await client.get("/assets/link.js")
+        text = await response.text()
+
+    replace_index = text.index("history.replaceState")
+
+    assert response.status == 200
+    assert "/link/validate" in text
+    assert "/link/request-otp" in text
+    assert "/link/verify-otp" in text
+    assert replace_index < text.index("/link/validate")
+    assert replace_index < text.index("/link/request-otp")
+    assert replace_index < text.index("/link/verify-otp")
+
+
+async def test_link_script_avoids_browser_storage_html_injection_and_logging(
+    tmp_path: Path,
+) -> None:
+    async with http_test_client(tmp_path / "bot.sqlite3") as client:
+        response = await client.get("/assets/link.js")
+        text = await response.text()
+
+    assert response.status == 200
+    assert "localStorage" not in text
+    assert "sessionStorage" not in text
+    assert "indexedDB" not in text
+    assert "document.cookie" not in text
+    assert "console." not in text
+    assert "innerHTML" not in text
+    assert ".textContent" in text
+
+
 async def test_validate_link_accepts_valid_challenge(
     tmp_path: Path,
 ) -> None:
