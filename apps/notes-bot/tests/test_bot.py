@@ -11,6 +11,7 @@ from notes_bot.bot import (
     create_dispatcher,
     display_note_title,
     handle_create,
+    handle_delete,
     handle_edit,
     handle_note,
     handle_notes,
@@ -805,4 +806,176 @@ async def test_handle_edit_hides_unexpected_error_details(
 
     message.answer.assert_awaited_once_with(
         "I could not update that note right now. Please try again."
+    )
+
+
+async def test_handle_delete_removes_a_linked_users_note(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session_manager = SimpleNamespace()
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=100, type=ChatType.PRIVATE),
+        answer=AsyncMock(),
+    )
+    note_id = "123e4567-e89b-12d3-a456-426614174000"
+    delete_note_mock = AsyncMock(
+        return_value=Note(
+            id=note_id,
+            title="Deleted note",
+            content="Deleted content",
+            created_at="2026-09-01T09:00:00+00:00",
+            updated_at="2026-09-01T11:00:00+00:00",
+        )
+    )
+    monkeypatch.setattr("notes_bot.bot.delete_note", delete_note_mock)
+
+    await handle_delete(
+        message,
+        SimpleNamespace(args=note_id),
+        session_manager,
+    )
+
+    delete_note_mock.assert_awaited_once_with(
+        session_manager,
+        telegram_user_id=100,
+        note_id=note_id,
+    )
+    message.answer.assert_awaited_once_with("Deleted: Deleted note")
+
+
+async def test_handle_delete_rejects_group_chat_without_deleting_note(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=-100, type=ChatType.GROUP),
+        answer=AsyncMock(),
+    )
+    delete_note_mock = AsyncMock()
+    monkeypatch.setattr("notes_bot.bot.delete_note", delete_note_mock)
+
+    await handle_delete(message, SimpleNamespace(args="unused"), SimpleNamespace())
+
+    delete_note_mock.assert_not_awaited()
+    message.answer.assert_awaited_once_with(
+        "Notes are available only in a private chat."
+    )
+
+
+async def test_handle_delete_requires_a_telegram_user_without_deleting_note(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    message = SimpleNamespace(
+        from_user=None,
+        chat=SimpleNamespace(id=100, type=ChatType.PRIVATE),
+        answer=AsyncMock(),
+    )
+    delete_note_mock = AsyncMock()
+    monkeypatch.setattr("notes_bot.bot.delete_note", delete_note_mock)
+
+    await handle_delete(message, SimpleNamespace(args="unused"), SimpleNamespace())
+
+    delete_note_mock.assert_not_awaited()
+    message.answer.assert_awaited_once_with(
+        "Telegram did not provide your user identity."
+    )
+
+
+async def test_handle_delete_requires_one_valid_note_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=100, type=ChatType.PRIVATE),
+        answer=AsyncMock(),
+    )
+    delete_note_mock = AsyncMock()
+    monkeypatch.setattr("notes_bot.bot.delete_note", delete_note_mock)
+
+    await handle_delete(
+        message,
+        SimpleNamespace(args="not-a-note-id another-argument"),
+        SimpleNamespace(),
+    )
+
+    delete_note_mock.assert_not_awaited()
+    message.answer.assert_awaited_once_with("Usage: /delete NOTE_ID")
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [
+        (SessionNotLinked("missing"), "Link your account first using /start."),
+        (
+            SessionExpired("expired"),
+            "Your account link has expired. Use /start to link again.",
+        ),
+        (
+            SessionIdentityMismatch("mismatch"),
+            "Your account link has expired. Use /start to link again.",
+        ),
+    ],
+)
+async def test_handle_delete_maps_session_failures_to_safe_messages(
+    monkeypatch: pytest.MonkeyPatch,
+    error: Exception,
+    expected: str,
+) -> None:
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=100, type=ChatType.PRIVATE),
+        answer=AsyncMock(),
+    )
+    monkeypatch.setattr("notes_bot.bot.delete_note", AsyncMock(side_effect=error))
+
+    await handle_delete(
+        message,
+        SimpleNamespace(args="123e4567-e89b-12d3-a456-426614174000"),
+        SimpleNamespace(),
+    )
+
+    message.answer.assert_awaited_once_with(expected)
+
+
+async def test_handle_delete_reports_not_found(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=100, type=ChatType.PRIVATE),
+        answer=AsyncMock(),
+    )
+    monkeypatch.setattr("notes_bot.bot.delete_note", AsyncMock(return_value=None))
+
+    await handle_delete(
+        message,
+        SimpleNamespace(args="123e4567-e89b-12d3-a456-426614174000"),
+        SimpleNamespace(),
+    )
+
+    message.answer.assert_awaited_once_with("Note not found.")
+
+
+async def test_handle_delete_hides_unexpected_error_details(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=100, type=ChatType.PRIVATE),
+        answer=AsyncMock(),
+    )
+    monkeypatch.setattr(
+        "notes_bot.bot.delete_note",
+        AsyncMock(side_effect=RuntimeError("access token leaked")),
+    )
+
+    await handle_delete(
+        message,
+        SimpleNamespace(args="123e4567-e89b-12d3-a456-426614174000"),
+        SimpleNamespace(),
+    )
+
+    message.answer.assert_awaited_once_with(
+        "I could not delete that note right now. Please try again."
     )

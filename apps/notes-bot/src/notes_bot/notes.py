@@ -148,3 +148,28 @@ async def update_note(
         return None
 
     return Note.from_row(response.data[0])
+
+
+async def delete_note(
+    session_manager: SupabaseSessionManager,
+    *,
+    telegram_user_id: int,
+    note_id: str,
+) -> Note | None:
+    client = await session_manager.authenticated_client(
+        telegram_user_id=telegram_user_id,
+    )
+
+    # RLS restricts the deletion to notes owned by the linked user.
+    response = await (
+        client.table("notes")
+        .delete()
+        .eq("id", note_id)
+        .select(NOTE_DETAIL_COLUMNS)
+        .execute()
+    )
+
+    if not response.data:
+        return None
+
+    return Note.from_row(response.data[0])

@@ -8,7 +8,7 @@ local constraints remain with each component.
 
 - `apps/notes-cli/` — the functional command-line reference client.
 - `apps/notes-bot/` — the Telegram account-linking client with private Notes
-  creation, listing, viewing, and editing.
+  CRUD.
 - `supabase/` — local Supabase configuration, schema migrations, seed data,
   and database tests.
 - `deploy/self-hosted/` — Docker-based self-hosted Supabase deployment.

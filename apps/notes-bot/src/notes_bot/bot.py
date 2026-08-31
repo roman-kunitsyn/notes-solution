@@ -33,6 +33,7 @@ from notes_bot.notes import (
     Note,
     NoteSummary,
     create_note,
+    delete_note,
     get_note,
     list_notes,
     update_note,
@@ -342,6 +343,51 @@ async def handle_edit(
         return
 
     await message.answer("Note updated.\n\n" + build_note_message(note))
+
+
+@router.message(Command("delete"))
+async def handle_delete(
+    message: Message,
+    command: CommandObject,
+    session_manager: SupabaseSessionManager,
+) -> None:
+    if message.chat.type != ChatType.PRIVATE:
+        await message.answer("Notes are available only in a private chat.")
+        return
+
+    if message.from_user is None:
+        await message.answer("Telegram did not provide your user identity.")
+        return
+
+    note_id = parse_note_id(command.args)
+
+    if note_id is None:
+        await message.answer("Usage: /delete NOTE_ID")
+        return
+
+    try:
+        note = await delete_note(
+            session_manager,
+            telegram_user_id=message.from_user.id,
+            note_id=note_id,
+        )
+    except SessionNotLinked:
+        await message.answer("Link your account first using /start.")
+        return
+    except SessionExpired, SessionIdentityMismatch:
+        await message.answer("Your account link has expired. Use /start to link again.")
+        return
+    except Exception:  # noqa: BLE001 - Telegram responses must not leak backend errors.
+        await message.answer(
+            "I could not delete that note right now. Please try again."
+        )
+        return
+
+    if note is None:
+        await message.answer("Note not found.")
+        return
+
+    await message.answer(f"Deleted: {note.title}")
 
 
 def create_dispatcher() -> Dispatcher:

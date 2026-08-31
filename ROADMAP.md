@@ -20,9 +20,8 @@ the reference behavior for subsequent clients.
 
 ### Deliver equivalent Notes CRUD in the bot
 
-**In progress.** The bot can create, list, view, and edit notes for a linked
-account. Add the remaining delete operation against the same Supabase-backed
-product.
+**Complete.** The bot can create, list, view, edit, and delete notes for a
+linked account against the same Supabase-backed product.
 
 ## Parallel work
 
@@ -42,6 +41,6 @@ deployment target and does not block the current Docker Compose path.
 
 - [Product baseline](docs/product.md)
 - [CLI roadmap](apps/notes-cli/ROADMAP.md)
-- [Bot roadmap](apps/notes-bot/ROADMAP.md) *(in-progress component document)*
+- [Bot roadmap](apps/notes-bot/ROADMAP.md)
 - [Self-hosted deployment](deploy/self-hosted/README.md)
 - [Production deployment runbook](deploy/self-hosted/docs/production-deployment.md)

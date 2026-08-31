@@ -6,6 +6,7 @@ from notes_bot.notes import (
     NOTE_COLUMNS,
     NOTE_DETAIL_COLUMNS,
     create_note,
+    delete_note,
     get_note,
     list_notes,
     update_note,
@@ -249,6 +250,73 @@ async def test_update_note_returns_none_when_rls_hides_or_omits_note() -> None:
         note_id="123e4567-e89b-12d3-a456-426614174000",
         title="Updated note",
         content="Updated privately.",
+    )
+
+    assert note is None
+
+
+class FakeDeleteQuery:
+    def __init__(self, data: list[dict[str, str]] | None) -> None:
+        self.data = data
+
+    def delete(self):
+        return self
+
+    def eq(self, column: str, value: str):
+        assert column == "id"
+        assert value == "123e4567-e89b-12d3-a456-426614174000"
+        return self
+
+    def select_columns(self, columns: str):
+        assert columns == NOTE_DETAIL_COLUMNS
+        return self
+
+    async def execute(self):
+        return SimpleNamespace(data=self.data)
+
+
+async def test_delete_note_uses_linked_user_session_and_rls_scoped_delete() -> None:
+    query = FakeDeleteQuery(
+        [
+            {
+                "id": "123e4567-e89b-12d3-a456-426614174000",
+                "title": "Deleted note",
+                "content": "Deleted privately.",
+                "created_at": "2026-09-01T09:00:00+00:00",
+                "updated_at": "2026-09-01T11:00:00+00:00",
+            }
+        ]
+    )
+    query.select = query.select_columns
+    client = SimpleNamespace(table=Mock(return_value=query))
+    session_manager = SimpleNamespace(
+        authenticated_client=AsyncMock(return_value=client)
+    )
+
+    note = await delete_note(
+        session_manager,
+        telegram_user_id=100,
+        note_id="123e4567-e89b-12d3-a456-426614174000",
+    )
+
+    session_manager.authenticated_client.assert_awaited_once_with(telegram_user_id=100)
+    client.table.assert_called_once_with("notes")
+    assert note is not None
+    assert note.title == "Deleted note"
+
+
+async def test_delete_note_returns_none_when_rls_hides_or_omits_note() -> None:
+    query = FakeDeleteQuery([])
+    query.select = query.select_columns
+    client = SimpleNamespace(table=Mock(return_value=query))
+    session_manager = SimpleNamespace(
+        authenticated_client=AsyncMock(return_value=client)
+    )
+
+    note = await delete_note(
+        session_manager,
+        telegram_user_id=100,
+        note_id="123e4567-e89b-12d3-a456-426614174000",
     )
 
     assert note is None
