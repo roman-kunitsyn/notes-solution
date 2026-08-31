@@ -17,6 +17,53 @@ this shared workflow.
    command or quality gate.
 5. **Report** the completed work concisely.
 
+## Model delegation
+
+The primary Terra agent owns every task: planning, architecture, required
+behavior, core implementation, ambiguous or high-risk changes, integration,
+final review, and final validation. Delegating work to Luna does not transfer
+responsibility for correctness.
+
+Use Luna for bounded, well-specified supporting work with clear acceptance
+criteria, such as test implementation or fixtures, repetitive test cases,
+mechanical refactoring, documentation, lint or type cleanup, and precisely
+defined repetitive migrations or transformations. Prefer delegation only when
+it reduces repetitive work without increasing coordination complexity; keep
+small, clearer tasks with the primary agent.
+
+Before delegating, the primary agent must define the scope, expected behavior,
+relevant files or boundaries, constraints, and acceptance criteria. Delegate
+only work that can be independently described and reviewed. Do not delegate
+unresolved product behavior, architecture, ambiguous requirements, or
+architectural decisions implicitly embedded in a bounded implementation task.
+Delegated work follows this file and any applicable child `AGENTS.md` rules;
+the primary agent reviews and integrates it, and retains final validation.
+
+Keep authentication and authorization, security boundaries, data-loss risks,
+migrations requiring semantic decisions, deployment architecture, public API
+contracts, and cross-project architecture with the primary agent, unless a
+separately reviewable delegated portion is narrowly mechanical.
+
+For normal feature work, use this sequence:
+
+1. Read relevant documentation and roadmap material.
+2. Determine required behavior and plan the change.
+3. Implement the core feature behavior.
+4. Delegate bounded supporting work to Luna when useful.
+5. Luna completes the explicitly scoped work.
+6. Review and integrate the delegated work.
+7. Run final validation.
+8. Update documentation or roadmap material when required.
+9. Produce the implementation report.
+10. Propose a git commit message.
+
+Prefer Luna for tests when expected behavior is defined, interfaces are stable,
+boundaries are clear, and the primary implementation can be reviewed
+independently. Keep test design with the primary agent when tests must discover
+or clarify intended behavior. Luna may update documentation when the required
+behavior is known; product decisions, architecture, canonical behavior,
+roadmap priority, and conflicting documentation remain with the primary agent.
+
 ## Documentation and roadmap
 
 Keep documentation accurate when behavior, setup, configuration, commands, or
