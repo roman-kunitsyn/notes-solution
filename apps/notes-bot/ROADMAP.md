@@ -9,18 +9,22 @@ change the supported product baseline or the CLI contract.
 
 The bot can start from Telegram, link an existing Supabase account through a
 browser email-OTP flow, persist encrypted linked sessions in local SQLite, and
-serve a health endpoint. This is the completed foundation for future
-authenticated bot operations; it is not Notes CRUD.
+serve a health endpoint.
+
+### Recent note listing
+
+The private-chat `/notes` command uses a refreshed linked session to list the
+20 most recently updated notes permitted by Supabase RLS. SQLite remains
+limited to link challenges and encrypted linked sessions.
 
 ## Next
 
-### Notes CRUD derived from the stable CLI contract
+### Remaining Notes CRUD derived from the stable CLI contract
 
-After the CLI's supported behavior is stable, deliver the corresponding bot
-operations for creating, listing, viewing, editing, and deleting a user's
-notes. Match the CLI's validated capability semantics, authentication model,
-and RLS-protected ownership behavior rather than inventing a separate bot
-contract.
+Deliver the corresponding bot operations for viewing, creating, editing, and
+deleting a user's notes. Match the CLI's validated capability semantics,
+authentication model, and RLS-protected ownership behavior rather than
+inventing a separate bot contract.
 
 The implementation should use the linked user session and Supabase as the
 system of record. It must not mirror Notes data into SQLite or introduce a

@@ -17,5 +17,5 @@ not currently supported product capabilities.
 - [Documentation index](docs/README.md)
 - [Notes CLI](apps/notes-cli/README.md)
 - [Notes bot](apps/notes-bot/README.md) — account-linking implementation and
-  future-client design; it does not currently provide Notes CRUD.
+  initial private note listing; remaining Notes CRUD is in progress.
 - [Self-hosted Supabase deployment](deploy/self-hosted/README.md)

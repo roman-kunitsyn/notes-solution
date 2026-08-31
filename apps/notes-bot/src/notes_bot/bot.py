@@ -10,7 +10,7 @@ from aiogram.exceptions import (
     TelegramNetworkError,
     TelegramUnauthorizedError,
 )
-from aiogram.filters import CommandStart
+from aiogram.filters import Command, CommandStart
 from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -27,10 +27,23 @@ from notes_bot.http_server import (
     create_http_app,
 )
 from notes_bot.link_service import LinkingService
+from notes_bot.notes import (
+    DEFAULT_LIST_LIMIT,
+    NoteSummary,
+    list_notes,
+)
 from notes_bot.sessions import TokenCipher
 from notes_bot.supabase_otp import SupabaseOtpService
+from notes_bot.supabase_session import (
+    SessionExpired,
+    SessionIdentityMismatch,
+    SessionNotLinked,
+    SupabaseSessionManager,
+)
 
 router = Router(name=__name__)
+
+NOTE_TITLE_DISPLAY_LIMIT = 120
 
 
 def build_start_message(
@@ -81,6 +94,59 @@ async def handle_start(
     )
 
 
+def display_note_title(title: str) -> str:
+    normalized = " ".join(title.split())
+
+    if len(normalized) <= NOTE_TITLE_DISPLAY_LIMIT:
+        return normalized
+
+    return f"{normalized[: NOTE_TITLE_DISPLAY_LIMIT - 3]}..."
+
+
+def build_notes_message(notes: list[NoteSummary]) -> str:
+    if not notes:
+        return "You do not have any notes yet."
+
+    entries = [
+        f"{note.id}\n{note.updated_at}  {display_note_title(note.title)}"
+        for note in notes
+    ]
+
+    return "Your latest notes:\n\n" + "\n\n".join(entries)
+
+
+@router.message(Command("notes"))
+async def handle_notes(
+    message: Message,
+    session_manager: SupabaseSessionManager,
+) -> None:
+    if message.chat.type != ChatType.PRIVATE:
+        await message.answer("Notes are available only in a private chat.")
+        return
+
+    if message.from_user is None:
+        await message.answer("Telegram did not provide your user identity.")
+        return
+
+    try:
+        notes = await list_notes(
+            session_manager,
+            telegram_user_id=message.from_user.id,
+            limit=DEFAULT_LIST_LIMIT,
+        )
+    except SessionNotLinked:
+        await message.answer("Link your account first using /start.")
+        return
+    except SessionExpired, SessionIdentityMismatch:
+        await message.answer("Your account link has expired. Use /start to link again.")
+        return
+    except Exception:  # noqa: BLE001 - Telegram responses must not leak backend errors.
+        await message.answer("I could not load your notes right now. Please try again.")
+        return
+
+    await message.answer(build_notes_message(notes))
+
+
 def create_dispatcher() -> Dispatcher:
     dispatcher = Dispatcher()
     dispatcher.include_router(router)
@@ -95,6 +161,12 @@ async def run() -> None:
     )
     cipher = TokenCipher(settings.encryption_key)
     otp_service = SupabaseOtpService(
+        supabase_url=settings.supabase_url,
+        publishable_key=settings.supabase_publishable_key,
+        database_path=settings.database_path,
+        cipher=cipher,
+    )
+    session_manager = SupabaseSessionManager(
         supabase_url=settings.supabase_url,
         publishable_key=settings.supabase_publishable_key,
         database_path=settings.database_path,
@@ -121,6 +193,7 @@ async def run() -> None:
                 bot,
                 allowed_updates=(dispatcher.resolve_used_update_types()),
                 linking_service=linking_service,
+                session_manager=session_manager,
             )
     finally:
         await http_server.stop()

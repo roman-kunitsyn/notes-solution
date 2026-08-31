@@ -19,7 +19,8 @@ identifiers; clients do not act as a privileged application layer.
 
 Each client is independently runnable and connects to the same Supabase
 project. The Notes CLI is the current functional reference client. The Notes
-bot is a separate client for account linking.
+bot is a separate client for account linking and private, linked-account note
+listing.
 
 There is no required FastAPI or other intermediary service in the current
 architecture.

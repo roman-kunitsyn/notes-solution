@@ -18,13 +18,11 @@ own implementation work without changing this cross-component order.
 CRUD, authentication, attachment behavior, and validation coverage. This is
 the reference behavior for subsequent clients.
 
-## Next
-
 ### Deliver equivalent Notes CRUD in the bot
 
-**Planned.** Build the bot's Notes create, list, view, edit, and delete
-operations against the same Supabase-backed product after CLI behavior is
-stable. Account linking remains the bot's existing foundation.
+**In progress.** The bot can list recent notes for a linked account. Add the
+remaining view, create, edit, and delete operations against the same
+Supabase-backed product.
 
 ## Parallel work
 
@@ -44,6 +42,6 @@ deployment target and does not block the current Docker Compose path.
 
 - [Product baseline](docs/product.md)
 - [CLI roadmap](apps/notes-cli/ROADMAP.md)
-- [Bot roadmap](apps/notes-bot/ROADMAP.md) *(planned component document)*
+- [Bot roadmap](apps/notes-bot/ROADMAP.md) *(in-progress component document)*
 - [Self-hosted deployment](deploy/self-hosted/README.md)
 - [Production deployment runbook](deploy/self-hosted/docs/production-deployment.md)

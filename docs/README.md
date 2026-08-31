@@ -14,8 +14,8 @@
 
 - [Notes CLI](../apps/notes-cli/README.md) — the functional reference client.
 - [Notes CLI roadmap](../apps/notes-cli/ROADMAP.md)
-- [Notes bot](../apps/notes-bot/README.md) — account linking and future-client
-  design; Notes CRUD is not yet supported.
+- [Notes bot](../apps/notes-bot/README.md) — account linking and private note
+  listing; remaining Notes CRUD is in progress.
 - [Supabase backend](../supabase/README.md) — local configuration, migrations,
   seed fixtures, and database tests.
 - [Self-hosted Supabase deployment](../deploy/self-hosted/README.md)
