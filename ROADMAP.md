@@ -43,7 +43,7 @@ deployment target and does not block the current Docker Compose path.
 ## Related documentation
 
 - [Product baseline](docs/product.md)
-- [CLI roadmap](apps/notes-cli/ROADMAP.md) *(planned component document)*
+- [CLI roadmap](apps/notes-cli/ROADMAP.md)
 - [Bot roadmap](apps/notes-bot/ROADMAP.md) *(planned component document)*
 - [Self-hosted deployment](deploy/self-hosted/README.md)
 - [Production deployment runbook](deploy/self-hosted/docs/production-deployment.md)

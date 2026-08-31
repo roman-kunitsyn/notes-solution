@@ -11,7 +11,7 @@
 ## Active components
 
 - [Notes CLI](../apps/notes-cli/README.md) — the functional reference client.
-- [Notes CLI design notes](../apps/notes-cli/docs/README.md)
+- [Notes CLI roadmap](../apps/notes-cli/ROADMAP.md)
 - [Notes bot](../apps/notes-bot/README.md) — account linking and future-client
   design; Notes CRUD is not yet supported.
 - [Supabase backend](../supabase/README.md) — local configuration, migrations,
