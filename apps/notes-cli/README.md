@@ -39,6 +39,15 @@ uv run notes config path
 
 The CLI prompts for the Supabase URL and API key.
 
+The CLI normally reads this saved local configuration. At runtime,
+`SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` override the saved URL and
+publishable (or legacy anonymous) key independently; neither has a code
+default. `NOTES_CLI_CONFIG_DIR` is an optional safe override for the
+platform configuration directory, primarily useful for isolated tests. The
+CLI does not load `.env` files itself; local development tooling may supply
+dotenv values to the process, while explicit runtime variables take precedence.
+Never supply a Supabase secret or service-role key.
+
 For local self-hosting, the URL is normally:
 
 ```text

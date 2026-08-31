@@ -36,3 +36,19 @@ and descendants. The current component-specific instruction files are:
 Use the root workflow for inspect, plan, implementation, validation, and the
 completion report. Use component documentation for exact setup and validation
 commands.
+
+## Configuration policy
+
+The [root agent instructions](../AGENTS.md#configuration) define the shared
+configuration policy. In short, applications consume runtime environment with
+the following precedence:
+
+```text
+explicit runtime environment > local .env values > safe code defaults
+```
+
+Required values have no default and must fail fast. `.env` files are ignored
+local-development conveniences; production, Docker/Compose, CI/CD, and future
+Kubernetes deployments inject configuration explicitly. Child project READMEs
+own their variable lists and defaults, so this guide intentionally does not
+repeat them.

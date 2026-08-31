@@ -51,17 +51,32 @@ uv sync --locked --all-groups
 uv run notes-bot --help
 ```
 
-Copy `.env.example` into an environment file or otherwise set its variables.
-`NOTES_BOT_ENCRYPTION_KEY` must be a URL-safe base64 key encoding 32 bytes;
-generate one with:
+Copy `.env.example` to an ignored local `.env` if it is useful for your
+development tooling, then ensure its values are supplied to the process. The
+bot itself reads runtime environment variables and does not load `.env` files.
+An explicitly supplied runtime value takes precedence over a local dotenv
+value.
+
+| Variable | Required | Purpose and safe default |
+| --- | --- | --- |
+| `TELEGRAM_BOT_TOKEN` | Yes | Telegram bot credential. |
+| `SUPABASE_URL` | Yes | Supabase API URL; local example is `http://127.0.0.1:54321`. |
+| `SUPABASE_PUBLISHABLE_KEY` | Yes | Publishable or legacy anonymous API key; secret and service-role keys are rejected. |
+| `NOTES_BOT_BASE_URL` | Yes | Public browser-linking base URL; HTTP is allowed only for localhost. |
+| `NOTES_BOT_ENCRYPTION_KEY` | Yes | URL-safe base64 key encoding exactly 32 bytes. |
+| `NOTES_BOT_DATABASE_PATH` | No | SQLite path; defaults to the platform data directory. |
+| `NOTES_BOT_HTTP_HOST` | No | Bind host; defaults to `127.0.0.1`. |
+| `NOTES_BOT_HTTP_PORT` | No | HTTP port; defaults to `8080`. |
+
+Generate `NOTES_BOT_ENCRYPTION_KEY` with:
 
 ```bash
 uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-For local development, `SUPABASE_URL` defaults to the local API endpoint in
-`.env.example`. `NOTES_BOT_BASE_URL` may use HTTP only for localhost; a public
-linking URL must use HTTPS.
+`NOTES_BOT_BASE_URL` may use HTTP only for localhost; a public linking URL
+must use HTTPS. Missing required configuration causes startup to fail with a
+clear error.
 
 ## Run
 
