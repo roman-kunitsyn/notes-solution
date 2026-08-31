@@ -5,6 +5,8 @@
 - [Development guide](development.md)
 - [Product baseline](product.md)
 - [Architecture](architecture.md)
+- [Deployment overview](deployment.md) — current Docker Compose deployment
+  boundary and planned Kubernetes progression.
 - [Repository roadmap](../ROADMAP.md)
 - [Supabase backend guide](../supabase/README.md)
 
@@ -17,3 +19,10 @@
 - [Supabase backend](../supabase/README.md) — local configuration, migrations,
   seed fixtures, and database tests.
 - [Self-hosted Supabase deployment](../deploy/self-hosted/README.md)
+- [Production deployment runbook](../deploy/self-hosted/docs/production-deployment.md)
+
+## Archive
+
+[Historical conversations](archive/README.md) are retained for context only.
+They are unmaintained and non-authoritative; use the active documentation above
+for current project guidance.

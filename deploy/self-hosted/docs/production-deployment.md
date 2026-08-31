@@ -1,6 +1,9 @@
-# Production Deployment Runbook
+# Notes production deployment runbook
 
-This runbook deploys the self-hosted Supabase stack to a Linux VPS.
+This runbook deploys the Notes self-hosted Supabase backend to a Linux VPS.
+It covers the current Docker Compose path only; it does not deploy a Notes
+client or provide Kubernetes operations. For project-wide platform status, see
+the [deployment overview](../../../docs/deployment.md).
 
 It assumes:
 
@@ -25,6 +28,18 @@ Production uses:
 - `scripts/restore.sh`
 
 The macOS-only `docker-compose.colima.yml` must not be used.
+
+## Scope and authoritative references
+
+The local Compose files and scripts above are the project-specific operational
+source of truth. Use Supabase's upstream documentation for generic vendor
+configuration and release information:
+
+- [Self-hosting with Docker](https://supabase.com/docs/guides/self-hosting/docker)
+- [Configure reverse proxy and HTTPS](https://supabase.com/docs/guides/self-hosting/self-hosted-proxy-https)
+- [Self-hosted configuration reference](https://github.com/supabase/supabase/blob/master/docker/CONFIG.md)
+- [Update a self-hosted deployment](https://supabase.com/docs/guides/self-hosting/updating)
+- [Self-hosted Docker changelog](https://github.com/supabase/supabase/blob/master/docker/CHANGELOG.md)
 
 ## Required server resources
 
@@ -270,7 +285,8 @@ Copy the resulting backup off the VPS and verify its checksums.
 
 Before every update:
 
-1. read the Supabase self-hosted changelog;
+1. read the [upstream self-hosted Docker changelog](https://github.com/supabase/supabase/blob/master/docker/CHANGELOG.md)
+   and the [updating guide](https://supabase.com/docs/guides/self-hosting/updating);
 2. create and copy an off-server backup;
 3. review image and configuration changes;
 4. test the update locally;
