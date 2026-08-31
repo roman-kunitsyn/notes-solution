@@ -26,9 +26,9 @@ Tags and rich search are future capabilities. The database schema includes tag
 tables for later use, but the current reference client does not provide tag
 commands or a rich-search workflow.
 
-The Notes bot can list recent notes for a linked account in a private Telegram
-chat, but it is not yet a supported full Notes CRUD client. Its remaining scope
-is view, create, edit, and delete work.
+The Notes bot can list and view notes for a linked account in a private
+Telegram chat, but it is not yet a supported full Notes CRUD client. Its
+remaining scope is create, edit, and delete work.
 
 ## References
 

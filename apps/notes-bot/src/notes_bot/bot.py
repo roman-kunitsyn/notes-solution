@@ -3,6 +3,7 @@ import asyncio
 import logging
 import sys
 from collections.abc import Sequence
+from uuid import UUID
 
 from aiogram import Bot, Dispatcher, Router
 from aiogram.enums import ChatType
@@ -10,7 +11,7 @@ from aiogram.exceptions import (
     TelegramNetworkError,
     TelegramUnauthorizedError,
 )
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -29,7 +30,9 @@ from notes_bot.http_server import (
 from notes_bot.link_service import LinkingService
 from notes_bot.notes import (
     DEFAULT_LIST_LIMIT,
+    Note,
     NoteSummary,
+    get_note,
     list_notes,
 )
 from notes_bot.sessions import TokenCipher
@@ -115,6 +118,30 @@ def build_notes_message(notes: list[NoteSummary]) -> str:
     return "Your latest notes:\n\n" + "\n\n".join(entries)
 
 
+def build_note_message(note: Note) -> str:
+    return (
+        f"ID: {note.id}\n"
+        f"Title: {note.title}\n"
+        f"Updated: {note.updated_at}\n\n"
+        f"{note.content or ''}"
+    )
+
+
+def parse_note_id(arguments: str | None) -> str | None:
+    if arguments is None:
+        return None
+
+    parts = arguments.split()
+
+    if len(parts) != 1:
+        return None
+
+    try:
+        return str(UUID(parts[0]))
+    except ValueError:
+        return None
+
+
 @router.message(Command("notes"))
 async def handle_notes(
     message: Message,
@@ -145,6 +172,49 @@ async def handle_notes(
         return
 
     await message.answer(build_notes_message(notes))
+
+
+@router.message(Command("note"))
+async def handle_note(
+    message: Message,
+    command: CommandObject,
+    session_manager: SupabaseSessionManager,
+) -> None:
+    if message.chat.type != ChatType.PRIVATE:
+        await message.answer("Notes are available only in a private chat.")
+        return
+
+    if message.from_user is None:
+        await message.answer("Telegram did not provide your user identity.")
+        return
+
+    note_id = parse_note_id(command.args)
+
+    if note_id is None:
+        await message.answer("Usage: /note NOTE_ID")
+        return
+
+    try:
+        note = await get_note(
+            session_manager,
+            telegram_user_id=message.from_user.id,
+            note_id=note_id,
+        )
+    except SessionNotLinked:
+        await message.answer("Link your account first using /start.")
+        return
+    except SessionExpired, SessionIdentityMismatch:
+        await message.answer("Your account link has expired. Use /start to link again.")
+        return
+    except Exception:  # noqa: BLE001 - Telegram responses must not leak backend errors.
+        await message.answer("I could not load that note right now. Please try again.")
+        return
+
+    if note is None:
+        await message.answer("Note not found.")
+        return
+
+    await message.answer(build_note_message(note))
 
 
 def create_dispatcher() -> Dispatcher:

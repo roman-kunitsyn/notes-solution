@@ -5,15 +5,18 @@ import pytest
 from aiogram.enums import ChatType
 
 from notes_bot.bot import (
+    build_note_message,
     build_notes_message,
     build_start_message,
     create_dispatcher,
     display_note_title,
+    handle_note,
     handle_notes,
     handle_start,
     main,
+    parse_note_id,
 )
-from notes_bot.notes import NoteSummary
+from notes_bot.notes import Note, NoteSummary
 from notes_bot.supabase_session import (
     SessionExpired,
     SessionIdentityMismatch,
@@ -172,6 +175,42 @@ def test_build_notes_message_has_empty_state() -> None:
     assert build_notes_message([]) == "You do not have any notes yet."
 
 
+def test_build_note_message_shows_full_note() -> None:
+    text = build_note_message(
+        Note(
+            id="123e4567-e89b-12d3-a456-426614174000",
+            title="First note",
+            content="The complete note content.",
+            created_at="2026-09-01T09:00:00+00:00",
+            updated_at="2026-09-01T10:00:00+00:00",
+        )
+    )
+
+    assert "ID: 123e4567-e89b-12d3-a456-426614174000" in text
+    assert "Title: First note" in text
+    assert "Updated: 2026-09-01T10:00:00+00:00" in text
+    assert text.endswith("The complete note content.")
+
+
+@pytest.mark.parametrize(
+    ("arguments", "expected"),
+    [
+        (
+            "123e4567-e89b-12d3-a456-426614174000",
+            "123e4567-e89b-12d3-a456-426614174000",
+        ),
+        (None, None),
+        ("", None),
+        ("not-a-note-id", None),
+        ("123e4567-e89b-12d3-a456-426614174000 extra", None),
+    ],
+)
+def test_parse_note_id_requires_one_uuid(
+    arguments: str | None, expected: str | None
+) -> None:
+    assert parse_note_id(arguments) == expected
+
+
 async def test_handle_notes_answers_with_linked_users_notes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -280,4 +319,157 @@ async def test_handle_notes_hides_unexpected_error_details(
 
     message.answer.assert_awaited_once_with(
         "I could not load your notes right now. Please try again."
+    )
+
+
+async def test_handle_note_answers_with_the_linked_users_note(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session_manager = SimpleNamespace()
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=100, type=ChatType.PRIVATE),
+        answer=AsyncMock(),
+    )
+    note_id = "123e4567-e89b-12d3-a456-426614174000"
+    get_note_mock = AsyncMock(
+        return_value=Note(
+            id=note_id,
+            title="First note",
+            content="Private content",
+            created_at="2026-09-01T09:00:00+00:00",
+            updated_at="2026-09-01T10:00:00+00:00",
+        )
+    )
+    monkeypatch.setattr("notes_bot.bot.get_note", get_note_mock)
+
+    await handle_note(
+        message,
+        SimpleNamespace(args=note_id),
+        session_manager,
+    )
+
+    get_note_mock.assert_awaited_once_with(
+        session_manager,
+        telegram_user_id=100,
+        note_id=note_id,
+    )
+    assert "Private content" in message.answer.await_args.args[0]
+
+
+async def test_handle_note_rejects_group_chat_without_loading_note(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=-100, type=ChatType.GROUP),
+        answer=AsyncMock(),
+    )
+    get_note_mock = AsyncMock()
+    monkeypatch.setattr("notes_bot.bot.get_note", get_note_mock)
+
+    await handle_note(
+        message,
+        SimpleNamespace(args="123e4567-e89b-12d3-a456-426614174000"),
+        SimpleNamespace(),
+    )
+
+    get_note_mock.assert_not_awaited()
+    message.answer.assert_awaited_once_with(
+        "Notes are available only in a private chat."
+    )
+
+
+async def test_handle_note_requires_one_note_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=100, type=ChatType.PRIVATE),
+        answer=AsyncMock(),
+    )
+    get_note_mock = AsyncMock()
+    monkeypatch.setattr("notes_bot.bot.get_note", get_note_mock)
+
+    await handle_note(message, SimpleNamespace(args="not-a-note-id"), SimpleNamespace())
+
+    get_note_mock.assert_not_awaited()
+    message.answer.assert_awaited_once_with("Usage: /note NOTE_ID")
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [
+        (SessionNotLinked("missing"), "Link your account first using /start."),
+        (
+            SessionExpired("expired"),
+            "Your account link has expired. Use /start to link again.",
+        ),
+        (
+            SessionIdentityMismatch("mismatch"),
+            "Your account link has expired. Use /start to link again.",
+        ),
+    ],
+)
+async def test_handle_note_maps_session_failures_to_safe_messages(
+    monkeypatch: pytest.MonkeyPatch,
+    error: Exception,
+    expected: str,
+) -> None:
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=100, type=ChatType.PRIVATE),
+        answer=AsyncMock(),
+    )
+    monkeypatch.setattr("notes_bot.bot.get_note", AsyncMock(side_effect=error))
+
+    await handle_note(
+        message,
+        SimpleNamespace(args="123e4567-e89b-12d3-a456-426614174000"),
+        SimpleNamespace(),
+    )
+
+    message.answer.assert_awaited_once_with(expected)
+
+
+async def test_handle_note_reports_not_found(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=100, type=ChatType.PRIVATE),
+        answer=AsyncMock(),
+    )
+    monkeypatch.setattr("notes_bot.bot.get_note", AsyncMock(return_value=None))
+
+    await handle_note(
+        message,
+        SimpleNamespace(args="123e4567-e89b-12d3-a456-426614174000"),
+        SimpleNamespace(),
+    )
+
+    message.answer.assert_awaited_once_with("Note not found.")
+
+
+async def test_handle_note_hides_unexpected_error_details(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=100, type=ChatType.PRIVATE),
+        answer=AsyncMock(),
+    )
+    monkeypatch.setattr(
+        "notes_bot.bot.get_note",
+        AsyncMock(side_effect=RuntimeError("access token leaked")),
+    )
+
+    await handle_note(
+        message,
+        SimpleNamespace(args="123e4567-e89b-12d3-a456-426614174000"),
+        SimpleNamespace(),
+    )
+
+    message.answer.assert_awaited_once_with(
+        "I could not load that note right now. Please try again."
     )
