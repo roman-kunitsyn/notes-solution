@@ -116,3 +116,35 @@ async def create_note(
         raise RuntimeError("Supabase did not return the created note")
 
     return Note.from_row(response.data[0])
+
+
+async def update_note(
+    session_manager: SupabaseSessionManager,
+    *,
+    telegram_user_id: int,
+    note_id: str,
+    title: str,
+    content: str,
+) -> Note | None:
+    client = await session_manager.authenticated_client(
+        telegram_user_id=telegram_user_id,
+    )
+
+    # RLS restricts the update to notes owned by the linked user.
+    response = await (
+        client.table("notes")
+        .update(
+            {
+                "title": title,
+                "content": content,
+            }
+        )
+        .eq("id", note_id)
+        .select(NOTE_DETAIL_COLUMNS)
+        .execute()
+    )
+
+    if not response.data:
+        return None
+
+    return Note.from_row(response.data[0])

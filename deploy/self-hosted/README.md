@@ -2,8 +2,9 @@
 
 This directory contains the Docker Compose deployment for the Notes Supabase
 backend. It is the current supported deployment target. It does not deploy a
-Notes client: the CLI runs separately, and the bot does not yet provide Notes
-CRUD. Kubernetes is planned platform work, not a supported deployment target.
+Notes client: the CLI and bot run separately, and no client container deployment
+is provided. Kubernetes is planned platform work, not a supported deployment
+target.
 
 For the project-wide deployment boundary and platform status, read the
 [deployment overview](../../docs/deployment.md). For a Linux VPS, follow the

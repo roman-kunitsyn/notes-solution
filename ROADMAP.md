@@ -20,9 +20,9 @@ the reference behavior for subsequent clients.
 
 ### Deliver equivalent Notes CRUD in the bot
 
-**In progress.** The bot can create, list, and view notes for a linked account.
-Add the remaining edit and delete operations against the same
-Supabase-backed product.
+**In progress.** The bot can create, list, view, and edit notes for a linked
+account. Add the remaining delete operation against the same Supabase-backed
+product.
 
 ## Parallel work
 

@@ -35,6 +35,7 @@ from notes_bot.notes import (
     create_note,
     get_note,
     list_notes,
+    update_note,
 )
 from notes_bot.sessions import TokenCipher
 from notes_bot.supabase_otp import SupabaseOtpService
@@ -156,6 +157,25 @@ def parse_note_creation(arguments: str | None) -> tuple[str, str] | None:
     return normalized_title, content if separator else ""
 
 
+def parse_note_edit(arguments: str | None) -> tuple[str, str, str] | None:
+    if arguments is None:
+        return None
+
+    note_id, separator, draft_arguments = arguments.partition("\n")
+
+    if not separator:
+        return None
+
+    parsed_note_id = parse_note_id(note_id)
+    draft = parse_note_creation(draft_arguments)
+
+    if parsed_note_id is None or draft is None:
+        return None
+
+    title, content = draft
+    return parsed_note_id, title, content
+
+
 @router.message(Command("notes"))
 async def handle_notes(
     message: Message,
@@ -273,6 +293,55 @@ async def handle_create(
         return
 
     await message.answer("Note created.\n\n" + build_note_message(note))
+
+
+@router.message(Command("edit"))
+async def handle_edit(
+    message: Message,
+    command: CommandObject,
+    session_manager: SupabaseSessionManager,
+) -> None:
+    if message.chat.type != ChatType.PRIVATE:
+        await message.answer("Notes are available only in a private chat.")
+        return
+
+    if message.from_user is None:
+        await message.answer("Telegram did not provide your user identity.")
+        return
+
+    draft = parse_note_edit(command.args)
+
+    if draft is None:
+        await message.answer("Usage: /edit NOTE_ID\\nTITLE\\nCONTENT")
+        return
+
+    note_id, title, content = draft
+
+    try:
+        note = await update_note(
+            session_manager,
+            telegram_user_id=message.from_user.id,
+            note_id=note_id,
+            title=title,
+            content=content,
+        )
+    except SessionNotLinked:
+        await message.answer("Link your account first using /start.")
+        return
+    except SessionExpired, SessionIdentityMismatch:
+        await message.answer("Your account link has expired. Use /start to link again.")
+        return
+    except Exception:  # noqa: BLE001 - Telegram responses must not leak backend errors.
+        await message.answer(
+            "I could not update that note right now. Please try again."
+        )
+        return
+
+    if note is None:
+        await message.answer("Note not found.")
+        return
+
+    await message.answer("Note updated.\n\n" + build_note_message(note))
 
 
 def create_dispatcher() -> Dispatcher:

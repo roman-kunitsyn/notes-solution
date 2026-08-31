@@ -30,14 +30,19 @@ linked user, with optional content on following lines. The bot sends only the
 title and content to Supabase; ownership remains derived from the authenticated
 session rather than from client input.
 
+### Note editing
+
+The private-chat `/edit NOTE_ID` command replaces a linked user's note title
+and content from the following lines. It uses the refreshed linked session and
+the existing update RLS policy; SQLite does not persist note data.
+
 ## Next
 
 ### Remaining Notes CRUD derived from the stable CLI contract
 
-Deliver the corresponding bot operations for editing and deleting a user's
-notes. Match the CLI's validated capability semantics,
-authentication model, and RLS-protected ownership behavior rather than
-inventing a separate bot contract.
+Deliver the corresponding bot operation for deleting a user's notes. Match the
+CLI's validated capability semantics, authentication model, and RLS-protected
+ownership behavior rather than inventing a separate bot contract.
 
 The implementation should use the linked user session and Supabase as the
 system of record. It must not mirror Notes data into SQLite or introduce a

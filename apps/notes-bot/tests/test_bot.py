@@ -11,11 +11,13 @@ from notes_bot.bot import (
     create_dispatcher,
     display_note_title,
     handle_create,
+    handle_edit,
     handle_note,
     handle_notes,
     handle_start,
     main,
     parse_note_creation,
+    parse_note_edit,
     parse_note_id,
 )
 from notes_bot.notes import Note, NoteSummary
@@ -227,6 +229,37 @@ def test_parse_note_creation_uses_first_line_as_required_title(
     arguments: str | None, expected: tuple[str, str] | None
 ) -> None:
     assert parse_note_creation(arguments) == expected
+
+
+@pytest.mark.parametrize(
+    ("arguments", "expected"),
+    [
+        (
+            "123e4567-e89b-12d3-a456-426614174000\nUpdated note\nContent",
+            (
+                "123e4567-e89b-12d3-a456-426614174000",
+                "Updated note",
+                "Content",
+            ),
+        ),
+        (
+            "123e4567-e89b-12d3-a456-426614174000\nUpdated note",
+            (
+                "123e4567-e89b-12d3-a456-426614174000",
+                "Updated note",
+                "",
+            ),
+        ),
+        (None, None),
+        ("not-a-note-id\nUpdated note", None),
+        ("123e4567-e89b-12d3-a456-426614174000", None),
+        ("123e4567-e89b-12d3-a456-426614174000\n  \nContent", None),
+    ],
+)
+def test_parse_note_edit_requires_a_note_id_and_nonempty_title(
+    arguments: str | None, expected: tuple[str, str, str] | None
+) -> None:
+    assert parse_note_edit(arguments) == expected
 
 
 async def test_handle_notes_answers_with_linked_users_notes(
@@ -616,4 +649,160 @@ async def test_handle_create_hides_unexpected_error_details(
 
     message.answer.assert_awaited_once_with(
         "I could not create that note right now. Please try again."
+    )
+
+
+async def test_handle_edit_updates_a_linked_users_note(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session_manager = SimpleNamespace()
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=100, type=ChatType.PRIVATE),
+        answer=AsyncMock(),
+    )
+    note_id = "123e4567-e89b-12d3-a456-426614174000"
+    update_note_mock = AsyncMock(
+        return_value=Note(
+            id=note_id,
+            title="Updated note",
+            content="Updated content",
+            created_at="2026-09-01T09:00:00+00:00",
+            updated_at="2026-09-01T11:00:00+00:00",
+        )
+    )
+    monkeypatch.setattr("notes_bot.bot.update_note", update_note_mock)
+
+    await handle_edit(
+        message,
+        SimpleNamespace(args=f"{note_id}\nUpdated note\nUpdated content"),
+        session_manager,
+    )
+
+    update_note_mock.assert_awaited_once_with(
+        session_manager,
+        telegram_user_id=100,
+        note_id=note_id,
+        title="Updated note",
+        content="Updated content",
+    )
+    assert "Note updated." in message.answer.await_args.args[0]
+    assert "Updated content" in message.answer.await_args.args[0]
+
+
+async def test_handle_edit_rejects_group_chat_without_updating_note(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=-100, type=ChatType.GROUP),
+        answer=AsyncMock(),
+    )
+    update_note_mock = AsyncMock()
+    monkeypatch.setattr("notes_bot.bot.update_note", update_note_mock)
+
+    await handle_edit(message, SimpleNamespace(args="unused"), SimpleNamespace())
+
+    update_note_mock.assert_not_awaited()
+    message.answer.assert_awaited_once_with(
+        "Notes are available only in a private chat."
+    )
+
+
+async def test_handle_edit_requires_a_note_id_and_nonempty_title(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=100, type=ChatType.PRIVATE),
+        answer=AsyncMock(),
+    )
+    update_note_mock = AsyncMock()
+    monkeypatch.setattr("notes_bot.bot.update_note", update_note_mock)
+
+    await handle_edit(
+        message,
+        SimpleNamespace(args="123e4567-e89b-12d3-a456-426614174000\n  \nContent"),
+        SimpleNamespace(),
+    )
+
+    update_note_mock.assert_not_awaited()
+    message.answer.assert_awaited_once_with("Usage: /edit NOTE_ID\\nTITLE\\nCONTENT")
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [
+        (SessionNotLinked("missing"), "Link your account first using /start."),
+        (
+            SessionExpired("expired"),
+            "Your account link has expired. Use /start to link again.",
+        ),
+        (
+            SessionIdentityMismatch("mismatch"),
+            "Your account link has expired. Use /start to link again.",
+        ),
+    ],
+)
+async def test_handle_edit_maps_session_failures_to_safe_messages(
+    monkeypatch: pytest.MonkeyPatch,
+    error: Exception,
+    expected: str,
+) -> None:
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=100, type=ChatType.PRIVATE),
+        answer=AsyncMock(),
+    )
+    monkeypatch.setattr("notes_bot.bot.update_note", AsyncMock(side_effect=error))
+
+    await handle_edit(
+        message,
+        SimpleNamespace(args="123e4567-e89b-12d3-a456-426614174000\nUpdated note"),
+        SimpleNamespace(),
+    )
+
+    message.answer.assert_awaited_once_with(expected)
+
+
+async def test_handle_edit_reports_not_found(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=100, type=ChatType.PRIVATE),
+        answer=AsyncMock(),
+    )
+    monkeypatch.setattr("notes_bot.bot.update_note", AsyncMock(return_value=None))
+
+    await handle_edit(
+        message,
+        SimpleNamespace(args="123e4567-e89b-12d3-a456-426614174000\nUpdated note"),
+        SimpleNamespace(),
+    )
+
+    message.answer.assert_awaited_once_with("Note not found.")
+
+
+async def test_handle_edit_hides_unexpected_error_details(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=100, type=ChatType.PRIVATE),
+        answer=AsyncMock(),
+    )
+    monkeypatch.setattr(
+        "notes_bot.bot.update_note",
+        AsyncMock(side_effect=RuntimeError("access token leaked")),
+    )
+
+    await handle_edit(
+        message,
+        SimpleNamespace(args="123e4567-e89b-12d3-a456-426614174000\nUpdated note"),
+        SimpleNamespace(),
+    )
+
+    message.answer.assert_awaited_once_with(
+        "I could not update that note right now. Please try again."
     )

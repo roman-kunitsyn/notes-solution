@@ -9,8 +9,8 @@ for TLS, and the accompanying backup, restore, and health-check scripts.
 
 This deployment provides the Notes database, Auth, Storage, API gateway, and
 Studio. It is not a complete deployment of every Notes client: the CLI runs on
-the operator's machine, and the bot has no Notes CRUD deployment yet. No client
-container deployment is currently provided.
+the operator's machine, and no client container deployment is currently
+provided.
 
 ## Planned platform work
 
