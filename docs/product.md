@@ -27,8 +27,9 @@ tables for later use, but the current reference client does not provide tag
 commands or a rich-search workflow.
 
 The Notes bot can create, list, view, edit, and delete notes for a linked
-account in a private Telegram chat. It does not yet support attachments, tags,
-or rich search.
+account in a private Telegram chat, and list private attachment metadata. It
+does not yet support attachment upload, download, or deletion, tags, or rich
+search.
 
 ## References
 

@@ -5,11 +5,13 @@ import pytest
 from aiogram.enums import ChatType
 
 from notes_bot.bot import (
+    build_attachments_message,
     build_note_message,
     build_notes_message,
     build_start_message,
     create_dispatcher,
     display_note_title,
+    handle_attachments,
     handle_create,
     handle_delete,
     handle_edit,
@@ -21,7 +23,7 @@ from notes_bot.bot import (
     parse_note_edit,
     parse_note_id,
 )
-from notes_bot.notes import Note, NoteSummary
+from notes_bot.notes import AttachmentSummary, Note, NoteSummary
 from notes_bot.supabase_session import (
     SessionExpired,
     SessionIdentityMismatch,
@@ -41,6 +43,22 @@ def test_build_start_message_handles_missing_user() -> None:
 
     assert text.startswith("Hello!")
     assert "securely link your Supabase account" in text
+
+
+def test_build_attachments_message_formats_metadata_and_empty_state() -> None:
+    assert build_attachments_message([]) == "That note has no attachments."
+    assert (
+        build_attachments_message(
+            [
+                AttachmentSummary(
+                    name="example.txt",
+                    size=42,
+                    created_at="2026-09-01T10:00:00+00:00",
+                )
+            ]
+        )
+        == "Attachments:\n\n42 bytes  2026-09-01T10:00:00+00:00  example.txt"
+    )
 
 
 def test_create_dispatcher_registers_router() -> None:
@@ -525,6 +543,152 @@ async def test_handle_note_hides_unexpected_error_details(
     message.answer.assert_awaited_once_with(
         "I could not load that note right now. Please try again."
     )
+
+
+async def test_handle_attachments_lists_a_linked_users_attachment_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session_manager = SimpleNamespace()
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=100, type=ChatType.PRIVATE),
+        answer=AsyncMock(),
+    )
+    note_id = "123e4567-e89b-12d3-a456-426614174000"
+    list_attachments_mock = AsyncMock(
+        return_value=[
+            AttachmentSummary(
+                name="example.txt",
+                size=42,
+                created_at="2026-09-01T10:00:00+00:00",
+            )
+        ]
+    )
+    monkeypatch.setattr("notes_bot.bot.list_attachments", list_attachments_mock)
+
+    await handle_attachments(
+        message,
+        SimpleNamespace(args=note_id),
+        session_manager,
+    )
+
+    list_attachments_mock.assert_awaited_once_with(
+        session_manager,
+        telegram_user_id=100,
+        note_id=note_id,
+    )
+    assert "example.txt" in message.answer.await_args.args[0]
+
+
+async def test_handle_attachments_rejects_group_chat_without_listing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=-100, type=ChatType.GROUP),
+        answer=AsyncMock(),
+    )
+    list_attachments_mock = AsyncMock()
+    monkeypatch.setattr("notes_bot.bot.list_attachments", list_attachments_mock)
+
+    await handle_attachments(message, SimpleNamespace(args="unused"), SimpleNamespace())
+
+    list_attachments_mock.assert_not_awaited()
+    message.answer.assert_awaited_once_with(
+        "Notes are available only in a private chat."
+    )
+
+
+async def test_handle_attachments_requires_one_valid_note_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=100, type=ChatType.PRIVATE),
+        answer=AsyncMock(),
+    )
+    list_attachments_mock = AsyncMock()
+    monkeypatch.setattr("notes_bot.bot.list_attachments", list_attachments_mock)
+
+    await handle_attachments(
+        message, SimpleNamespace(args="not-a-note-id"), SimpleNamespace()
+    )
+
+    list_attachments_mock.assert_not_awaited()
+    message.answer.assert_awaited_once_with("Usage: /attachments NOTE_ID")
+
+
+@pytest.mark.parametrize(
+    ("result", "expected"),
+    [
+        (None, "Note not found."),
+        ([], "That note has no attachments."),
+    ],
+)
+async def test_handle_attachments_handles_missing_note_and_empty_list(
+    monkeypatch: pytest.MonkeyPatch,
+    result: list[AttachmentSummary] | None,
+    expected: str,
+) -> None:
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=100, type=ChatType.PRIVATE),
+        answer=AsyncMock(),
+    )
+    monkeypatch.setattr(
+        "notes_bot.bot.list_attachments",
+        AsyncMock(return_value=result),
+    )
+
+    await handle_attachments(
+        message,
+        SimpleNamespace(args="123e4567-e89b-12d3-a456-426614174000"),
+        SimpleNamespace(),
+    )
+
+    message.answer.assert_awaited_once_with(expected)
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [
+        (SessionNotLinked("missing"), "Link your account first using /start."),
+        (
+            SessionExpired("expired"),
+            "Your account link has expired. Use /start to link again.",
+        ),
+        (
+            SessionIdentityMismatch("mismatch"),
+            "Your account link has expired. Use /start to link again.",
+        ),
+        (
+            RuntimeError("access token leaked"),
+            "I could not load that note's attachments right now. Please try again.",
+        ),
+    ],
+)
+async def test_handle_attachments_maps_failures_to_safe_messages(
+    monkeypatch: pytest.MonkeyPatch,
+    error: Exception,
+    expected: str,
+) -> None:
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=100, type=ChatType.PRIVATE),
+        answer=AsyncMock(),
+    )
+    monkeypatch.setattr(
+        "notes_bot.bot.list_attachments",
+        AsyncMock(side_effect=error),
+    )
+
+    await handle_attachments(
+        message,
+        SimpleNamespace(args="123e4567-e89b-12d3-a456-426614174000"),
+        SimpleNamespace(),
+    )
+
+    message.answer.assert_awaited_once_with(expected)
 
 
 async def test_handle_create_creates_a_linked_users_note(

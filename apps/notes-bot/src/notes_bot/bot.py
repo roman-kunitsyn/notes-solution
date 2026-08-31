@@ -30,11 +30,13 @@ from notes_bot.http_server import (
 from notes_bot.link_service import LinkingService
 from notes_bot.notes import (
     DEFAULT_LIST_LIMIT,
+    AttachmentSummary,
     Note,
     NoteSummary,
     create_note,
     delete_note,
     get_note,
+    list_attachments,
     list_notes,
     update_note,
 )
@@ -128,6 +130,20 @@ def build_note_message(note: Note) -> str:
         f"Updated: {note.updated_at}\n\n"
         f"{note.content or ''}"
     )
+
+
+def build_attachments_message(
+    attachments: list[AttachmentSummary],
+) -> str:
+    if not attachments:
+        return "That note has no attachments."
+
+    entries = [
+        f"{attachment.size} bytes  {attachment.created_at}  {attachment.name}"
+        for attachment in attachments
+    ]
+
+    return "Attachments:\n\n" + "\n".join(entries)
 
 
 def parse_note_id(arguments: str | None) -> str | None:
@@ -250,6 +266,51 @@ async def handle_note(
         return
 
     await message.answer(build_note_message(note))
+
+
+@router.message(Command("attachments"))
+async def handle_attachments(
+    message: Message,
+    command: CommandObject,
+    session_manager: SupabaseSessionManager,
+) -> None:
+    if message.chat.type != ChatType.PRIVATE:
+        await message.answer("Notes are available only in a private chat.")
+        return
+
+    if message.from_user is None:
+        await message.answer("Telegram did not provide your user identity.")
+        return
+
+    note_id = parse_note_id(command.args)
+
+    if note_id is None:
+        await message.answer("Usage: /attachments NOTE_ID")
+        return
+
+    try:
+        attachments = await list_attachments(
+            session_manager,
+            telegram_user_id=message.from_user.id,
+            note_id=note_id,
+        )
+    except SessionNotLinked:
+        await message.answer("Link your account first using /start.")
+        return
+    except SessionExpired, SessionIdentityMismatch:
+        await message.answer("Your account link has expired. Use /start to link again.")
+        return
+    except Exception:  # noqa: BLE001 - Telegram responses must not leak backend errors.
+        await message.answer(
+            "I could not load that note's attachments right now. Please try again."
+        )
+        return
+
+    if attachments is None:
+        await message.answer("Note not found.")
+        return
+
+    await message.answer(build_attachments_message(attachments))
 
 
 @router.message(Command("create"))

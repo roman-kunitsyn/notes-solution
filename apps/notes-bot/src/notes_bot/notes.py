@@ -6,6 +6,8 @@ from notes_bot.supabase_session import SupabaseSessionManager
 NOTE_COLUMNS = "id,title,updated_at"
 NOTE_DETAIL_COLUMNS = "id,title,content,created_at,updated_at"
 DEFAULT_LIST_LIMIT = 20
+ATTACHMENT_BUCKET = "note-attachments"
+DEFAULT_ATTACHMENT_LIST_LIMIT = 100
 
 
 @dataclass(frozen=True)
@@ -39,6 +41,23 @@ class Note:
             content=row.get("content"),
             created_at=str(row["created_at"]),
             updated_at=str(row["updated_at"]),
+        )
+
+
+@dataclass(frozen=True)
+class AttachmentSummary:
+    name: str
+    size: int
+    created_at: str
+
+    @classmethod
+    def from_row(cls, row: dict[str, Any]) -> AttachmentSummary:
+        metadata = row.get("metadata") or {}
+
+        return cls(
+            name=str(row["name"]),
+            size=int(metadata.get("size") or 0),
+            created_at=str(row.get("created_at") or ""),
         )
 
 
@@ -85,6 +104,46 @@ async def get_note(
         return None
 
     return Note.from_row(response.data[0])
+
+
+async def list_attachments(
+    session_manager: SupabaseSessionManager,
+    *,
+    telegram_user_id: int,
+    note_id: str,
+) -> list[AttachmentSummary] | None:
+    client = await session_manager.authenticated_client(
+        telegram_user_id=telegram_user_id,
+    )
+
+    # Confirm that the linked user can see the note before listing its objects.
+    # The same authenticated client is then used for the Storage request, where
+    # the bucket's RLS policy remains the authorization boundary.
+    note_response = await (
+        client.table("notes").select("id").eq("id", note_id).limit(1).execute()
+    )
+
+    if not note_response.data:
+        return None
+
+    user_response = await client.auth.get_user()
+
+    if user_response.user is None:
+        raise RuntimeError("Supabase session has no authenticated user")
+
+    rows = await client.storage.from_(ATTACHMENT_BUCKET).list(
+        f"{user_response.user.id}/{note_id}",
+        {
+            "limit": DEFAULT_ATTACHMENT_LIST_LIMIT,
+            "offset": 0,
+            "sortBy": {
+                "column": "name",
+                "order": "asc",
+            },
+        },
+    )
+
+    return [AttachmentSummary.from_row(row) for row in rows]
 
 
 async def create_note(

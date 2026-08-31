@@ -42,19 +42,29 @@ The private-chat `/delete NOTE_ID` command deletes a linked user's note through
 the refreshed linked session. Supabase RLS restricts deletion to the note
 owner; SQLite neither stores nor mirrors note data.
 
+### Attachment listing
+
+The private-chat `/attachments NOTE_ID` command lists private attachment
+metadata for a note visible to the linked user. It uses the refreshed session
+and existing Storage RLS policies, and does not download or persist attachment
+contents.
+
 ## Next
 
-No bot-specific work is planned before the CLI establishes another stable
-product capability.
+### Attachment delivery
+
+Deliver private attachment downloads to the linked user's private chat. Keep
+the existing Storage RLS boundary, avoid persisting attachment content, and
+define Telegram file-size and delivery-error behavior before implementation.
 
 ## Later
 
 ### Follow later product capabilities
 
-Consider bot support for tags, richer search, attachments, and other client
-features only after each capability is implemented, documented, and stable in
-the CLI and product baseline. Their future inclusion is not a claim of current
-bot functionality.
+Consider bot support for attachment upload and deletion, tags, richer search,
+and other client features only after each capability is implemented,
+documented, and stable in the CLI and product baseline. Their future inclusion
+is not a claim of current bot functionality.
 
 ## Related documentation
 

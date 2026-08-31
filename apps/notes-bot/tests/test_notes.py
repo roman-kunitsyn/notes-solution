@@ -2,12 +2,15 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 from notes_bot.notes import (
+    ATTACHMENT_BUCKET,
+    DEFAULT_ATTACHMENT_LIST_LIMIT,
     DEFAULT_LIST_LIMIT,
     NOTE_COLUMNS,
     NOTE_DETAIL_COLUMNS,
     create_note,
     delete_note,
     get_note,
+    list_attachments,
     list_notes,
     update_note,
 )
@@ -320,3 +323,95 @@ async def test_delete_note_returns_none_when_rls_hides_or_omits_note() -> None:
     )
 
     assert note is None
+
+
+class FakeAttachmentNoteQuery:
+    def __init__(self, data: list[dict[str, str]] | None) -> None:
+        self.data = data
+
+    def select(self, columns: str):
+        assert columns == "id"
+        return self
+
+    def eq(self, column: str, value: str):
+        assert column == "id"
+        assert value == "123e4567-e89b-12d3-a456-426614174000"
+        return self
+
+    def limit(self, value: int):
+        assert value == 1
+        return self
+
+    async def execute(self):
+        return SimpleNamespace(data=self.data)
+
+
+async def test_list_attachments_uses_linked_session_and_owned_storage_folder() -> None:
+    note_query = FakeAttachmentNoteQuery([{"id": "note-1"}])
+    bucket = SimpleNamespace(
+        list=AsyncMock(
+            return_value=[
+                {
+                    "name": "example.txt",
+                    "metadata": {"size": 42},
+                    "created_at": "2026-09-01T10:00:00+00:00",
+                }
+            ]
+        )
+    )
+    client = SimpleNamespace(
+        table=Mock(return_value=note_query),
+        auth=SimpleNamespace(
+            get_user=AsyncMock(
+                return_value=SimpleNamespace(user=SimpleNamespace(id="user-1"))
+            )
+        ),
+        storage=SimpleNamespace(from_=Mock(return_value=bucket)),
+    )
+    session_manager = SimpleNamespace(
+        authenticated_client=AsyncMock(return_value=client)
+    )
+
+    attachments = await list_attachments(
+        session_manager,
+        telegram_user_id=100,
+        note_id="123e4567-e89b-12d3-a456-426614174000",
+    )
+
+    session_manager.authenticated_client.assert_awaited_once_with(telegram_user_id=100)
+    client.table.assert_called_once_with("notes")
+    client.storage.from_.assert_called_once_with(ATTACHMENT_BUCKET)
+    bucket.list.assert_awaited_once_with(
+        "user-1/123e4567-e89b-12d3-a456-426614174000",
+        {
+            "limit": DEFAULT_ATTACHMENT_LIST_LIMIT,
+            "offset": 0,
+            "sortBy": {"column": "name", "order": "asc"},
+        },
+    )
+    assert [
+        (attachment.name, attachment.size, attachment.created_at)
+        for attachment in attachments
+    ] == [("example.txt", 42, "2026-09-01T10:00:00+00:00")]
+
+
+async def test_list_attachments_returns_none_when_rls_hides_the_note() -> None:
+    note_query = FakeAttachmentNoteQuery([])
+    client = SimpleNamespace(
+        table=Mock(return_value=note_query),
+        auth=SimpleNamespace(get_user=AsyncMock()),
+        storage=SimpleNamespace(from_=Mock()),
+    )
+    session_manager = SimpleNamespace(
+        authenticated_client=AsyncMock(return_value=client)
+    )
+
+    attachments = await list_attachments(
+        session_manager,
+        telegram_user_id=100,
+        note_id="123e4567-e89b-12d3-a456-426614174000",
+    )
+
+    assert attachments is None
+    client.auth.get_user.assert_not_awaited()
+    client.storage.from_.assert_not_called()
