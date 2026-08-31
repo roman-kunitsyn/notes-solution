@@ -24,7 +24,7 @@ changing, read its local instructions, and use the commands documented there.
 - [Notes CLI local instructions](../apps/notes-cli/AGENTS.md)
 - [Notes bot setup and checks](../apps/notes-bot/README.md)
 - [Notes bot local instructions](../apps/notes-bot/AGENTS.md)
-- [Supabase local configuration and migrations](../supabase/config.toml)
+- [Supabase backend lifecycle, migrations, and database tests](../supabase/README.md)
 - [Self-hosted Supabase deployment](../deploy/self-hosted/README.md)
 - [Production deployment guide](../deploy/self-hosted/docs/production-deployment.md)
 

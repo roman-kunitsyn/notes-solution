@@ -12,7 +12,8 @@ record for application data and identity:
 
 Clients access Supabase directly with a publishable or legacy anonymous key
 and the authenticated user's session. The database defaults and RLS policies
-determine ownership; clients do not act as a privileged application layer.
+derive ownership from `auth.uid()` rather than trusting client-supplied owner
+identifiers; clients do not act as a privileged application layer.
 
 ## Clients
 
@@ -31,6 +32,6 @@ Supabase stack. Kubernetes is not part of the current deployment architecture.
 ## Related documentation
 
 - [Product baseline](product.md)
-- [Supabase configuration and migrations](../supabase/config.toml)
+- [Supabase backend guide](../supabase/README.md)
 - [Self-hosted deployment](../deploy/self-hosted/README.md)
 - [Production deployment runbook](../deploy/self-hosted/docs/production-deployment.md)

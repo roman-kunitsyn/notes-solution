@@ -6,6 +6,7 @@
 - [Product baseline](product.md)
 - [Architecture](architecture.md)
 - [Repository roadmap](../ROADMAP.md)
+- [Supabase backend guide](../supabase/README.md)
 
 ## Active components
 
@@ -13,4 +14,6 @@
 - [Notes CLI design notes](../apps/notes-cli/docs/README.md)
 - [Notes bot](../apps/notes-bot/README.md) — account linking and future-client
   design; Notes CRUD is not yet supported.
+- [Supabase backend](../supabase/README.md) — local configuration, migrations,
+  seed fixtures, and database tests.
 - [Self-hosted Supabase deployment](../deploy/self-hosted/README.md)
