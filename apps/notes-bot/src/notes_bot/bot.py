@@ -32,6 +32,7 @@ from notes_bot.notes import (
     DEFAULT_LIST_LIMIT,
     Note,
     NoteSummary,
+    create_note,
     get_note,
     list_notes,
 )
@@ -142,6 +143,19 @@ def parse_note_id(arguments: str | None) -> str | None:
         return None
 
 
+def parse_note_creation(arguments: str | None) -> tuple[str, str] | None:
+    if arguments is None:
+        return None
+
+    title, separator, content = arguments.partition("\n")
+    normalized_title = title.strip()
+
+    if not normalized_title:
+        return None
+
+    return normalized_title, content if separator else ""
+
+
 @router.message(Command("notes"))
 async def handle_notes(
     message: Message,
@@ -215,6 +229,50 @@ async def handle_note(
         return
 
     await message.answer(build_note_message(note))
+
+
+@router.message(Command("create"))
+async def handle_create(
+    message: Message,
+    command: CommandObject,
+    session_manager: SupabaseSessionManager,
+) -> None:
+    if message.chat.type != ChatType.PRIVATE:
+        await message.answer("Notes are available only in a private chat.")
+        return
+
+    if message.from_user is None:
+        await message.answer("Telegram did not provide your user identity.")
+        return
+
+    draft = parse_note_creation(command.args)
+
+    if draft is None:
+        await message.answer("Usage: /create TITLE\\nCONTENT")
+        return
+
+    title, content = draft
+
+    try:
+        note = await create_note(
+            session_manager,
+            telegram_user_id=message.from_user.id,
+            title=title,
+            content=content,
+        )
+    except SessionNotLinked:
+        await message.answer("Link your account first using /start.")
+        return
+    except SessionExpired, SessionIdentityMismatch:
+        await message.answer("Your account link has expired. Use /start to link again.")
+        return
+    except Exception:  # noqa: BLE001 - Telegram responses must not leak backend errors.
+        await message.answer(
+            "I could not create that note right now. Please try again."
+        )
+        return
+
+    await message.answer("Note created.\n\n" + build_note_message(note))
 
 
 def create_dispatcher() -> Dispatcher:

@@ -85,3 +85,34 @@ async def get_note(
         return None
 
     return Note.from_row(response.data[0])
+
+
+async def create_note(
+    session_manager: SupabaseSessionManager,
+    *,
+    telegram_user_id: int,
+    title: str,
+    content: str,
+) -> Note:
+    client = await session_manager.authenticated_client(
+        telegram_user_id=telegram_user_id,
+    )
+
+    # Do not send user_id. PostgreSQL derives ownership from auth.uid(), and
+    # RLS enforces that the linked user can create only their own notes.
+    response = await (
+        client.table("notes")
+        .insert(
+            {
+                "title": title,
+                "content": content,
+            }
+        )
+        .select(NOTE_DETAIL_COLUMNS)
+        .execute()
+    )
+
+    if not response.data:
+        raise RuntimeError("Supabase did not return the created note")
+
+    return Note.from_row(response.data[0])

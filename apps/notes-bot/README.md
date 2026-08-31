@@ -1,8 +1,8 @@
 # Notes Telegram bot
 
 The Notes Telegram bot is the account-linking client for the self-hosted Notes
-product. It can list and view a linked account's notes, but does not yet provide
-note creation, editing, deletion, search, tags, attachments, or a deployment
+product. It can create, list, and view a linked account's notes, but does not
+yet provide note editing, deletion, search, tags, attachments, or a deployment
 package.
 
 ## Current functionality
@@ -12,6 +12,8 @@ package.
 - Lists the 20 most recently updated notes for a linked account with `/notes`
   in a private chat.
 - Views one linked account note with `/note NOTE_ID` in a private chat.
+- Creates a linked account note with `/create TITLE`, with optional content on
+  the following lines, in a private chat.
 - Issues a browser link for an existing Notes account.
 - Sends and verifies email OTPs through Supabase Auth without creating users.
 - Stores a linked Supabase refresh token encrypted in a bot-local SQLite
@@ -24,8 +26,9 @@ The link token is carried in the URL fragment, stored only as a hash, expires,
 and is single-use. The SQLite database is local bot state, not a Notes data
 store.
 
-`/notes` uses the linked user's refreshed Supabase session and the existing
-RLS policies. It does not persist or mirror Notes data locally.
+`/notes`, `/note`, and `/create` use the linked user's refreshed Supabase
+session and the existing RLS policies. They do not persist or mirror Notes data
+locally.
 
 ## Documentation
 

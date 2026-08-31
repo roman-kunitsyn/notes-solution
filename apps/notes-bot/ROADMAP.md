@@ -23,12 +23,19 @@ The private-chat `/note NOTE_ID` command uses a refreshed linked session to
 view one note permitted by Supabase RLS. The bot does not persist or mirror
 note content locally.
 
+### Note creation
+
+The private-chat `/create TITLE` command creates an RLS-protected note for the
+linked user, with optional content on following lines. The bot sends only the
+title and content to Supabase; ownership remains derived from the authenticated
+session rather than from client input.
+
 ## Next
 
 ### Remaining Notes CRUD derived from the stable CLI contract
 
-Deliver the corresponding bot operations for creating, editing, and deleting a
-user's notes. Match the CLI's validated capability semantics,
+Deliver the corresponding bot operations for editing and deleting a user's
+notes. Match the CLI's validated capability semantics,
 authentication model, and RLS-protected ownership behavior rather than
 inventing a separate bot contract.
 

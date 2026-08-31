@@ -5,6 +5,7 @@ from notes_bot.notes import (
     DEFAULT_LIST_LIMIT,
     NOTE_COLUMNS,
     NOTE_DETAIL_COLUMNS,
+    create_note,
     get_note,
     list_notes,
 )
@@ -124,3 +125,52 @@ async def test_get_note_returns_none_when_rls_hides_or_omits_note() -> None:
     )
 
     assert note is None
+
+
+class FakeCreateQuery:
+    def __init__(self) -> None:
+        self.data = [
+            {
+                "id": "123e4567-e89b-12d3-a456-426614174000",
+                "title": "New note",
+                "content": "Created privately.",
+                "created_at": "2026-09-01T09:00:00+00:00",
+                "updated_at": "2026-09-01T09:00:00+00:00",
+            }
+        ]
+
+    def insert(self, values: dict[str, str]):
+        assert values == {
+            "title": "New note",
+            "content": "Created privately.",
+        }
+        assert "user_id" not in values
+        return self
+
+    def select_columns(self, columns: str):
+        assert columns == NOTE_DETAIL_COLUMNS
+        return self
+
+    async def execute(self):
+        return SimpleNamespace(data=self.data)
+
+
+async def test_create_note_uses_linked_user_session_and_rls_owned_insert() -> None:
+    query = FakeCreateQuery()
+    query.select = query.select_columns
+    client = SimpleNamespace(table=Mock(return_value=query))
+    session_manager = SimpleNamespace(
+        authenticated_client=AsyncMock(return_value=client)
+    )
+
+    note = await create_note(
+        session_manager,
+        telegram_user_id=100,
+        title="New note",
+        content="Created privately.",
+    )
+
+    session_manager.authenticated_client.assert_awaited_once_with(telegram_user_id=100)
+    client.table.assert_called_once_with("notes")
+    assert note.title == "New note"
+    assert note.content == "Created privately."
