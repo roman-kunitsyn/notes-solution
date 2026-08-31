@@ -9,6 +9,8 @@ not currently supported product capabilities.
 
 ## Start here
 
+- [Repository workflow for contributors and agents](AGENTS.md)
+- [Development guide](docs/development.md)
 - [Product baseline](docs/product.md)
 - [Documentation index](docs/README.md)
 - [Notes CLI](apps/notes-cli/README.md)

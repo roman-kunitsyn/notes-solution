@@ -1,6 +1,8 @@
 # Notes documentation
 
 - [Repository entry point](../README.md)
+- [Repository workflow for contributors and agents](../AGENTS.md)
+- [Development guide](development.md)
 - [Product baseline](product.md)
 
 ## Active components
