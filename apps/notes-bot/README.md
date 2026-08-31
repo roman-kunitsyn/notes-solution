@@ -51,11 +51,11 @@ uv sync --locked --all-groups
 uv run notes-bot --help
 ```
 
-Copy `.env.example` to an ignored local `.env` if it is useful for your
-development tooling, then ensure its values are supplied to the process. The
-bot itself reads runtime environment variables and does not load `.env` files.
-An explicitly supplied runtime value takes precedence over a local dotenv
-value.
+Copy `.env.example` to an ignored local `.env` and set its values for local
+development. Start the bot with `uv run --env-file .env notes-bot` so `uv`
+supplies those values to the process. The bot itself reads runtime environment
+variables and does not discover or load `.env` files. Explicit runtime values
+take precedence over values from the explicitly supplied local dotenv file.
 
 | Variable | Required | Purpose and safe default |
 | --- | --- | --- |
@@ -81,12 +81,14 @@ clear error.
 ## Run
 
 ```bash
-uv run notes-bot
+uv run --env-file .env notes-bot
 ```
 
 The process starts the HTTP server and Telegram long polling. By default the
 HTTP server listens on `127.0.0.1:8080`; set `NOTES_BOT_HTTP_HOST` and
-`NOTES_BOT_HTTP_PORT` to change the binding.
+`NOTES_BOT_HTTP_PORT` to change the binding. Production, CI, containers, and
+Kubernetes must inject configuration explicitly and should not pass a local
+dotenv file.
 
 ## Checks
 
