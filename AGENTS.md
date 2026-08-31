@@ -64,6 +64,23 @@ or clarify intended behavior. Luna may update documentation when the required
 behavior is known; product decisions, architecture, canonical behavior,
 roadmap priority, and conflicting documentation remain with the primary agent.
 
+## Delegation visibility
+
+Whenever a subagent is created, report:
+
+- delegated task;
+- selected model;
+- expected output.
+
+After it finishes, report:
+
+- model used;
+- result;
+- files changed;
+- validation performed.
+
+Do not silently delegate work.
+
 ## Documentation and roadmap
 
 Keep documentation accurate when behavior, setup, configuration, commands, or
