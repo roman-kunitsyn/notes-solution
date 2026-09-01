@@ -1,5 +1,6 @@
 # Notes documentation
 
+<<<<<<< HEAD
 This directory contains repository-level documentation for Notes. Begin with
 the [repository entry point](../README.md) and the canonical
 [product baseline](product.md).
@@ -12,3 +13,32 @@ the [repository entry point](../README.md) and the canonical
   client; Notes CRUD is not supported yet.
 - [Self-hosted Supabase with Docker Compose](../deploy/self-hosted/README.md)
   — local and self-hosted Supabase deployment materials.
+||||||| bdd41ec
+=======
+- [Repository entry point](../README.md)
+- [Repository workflow for contributors and agents](../AGENTS.md)
+- [Development guide](development.md)
+- [Product baseline](product.md)
+- [Architecture](architecture.md)
+- [Deployment overview](deployment.md) — current Docker Compose deployment
+  boundary and planned Kubernetes progression.
+- [Repository roadmap](../ROADMAP.md)
+- [Supabase backend guide](../supabase/README.md)
+
+## Active components
+
+- [Notes CLI](../apps/notes-cli/README.md) — the functional reference client.
+- [Notes CLI roadmap](../apps/notes-cli/ROADMAP.md)
+- [Notes bot](../apps/notes-bot/README.md) — account linking plus private note
+  creation, listing, viewing, and editing; deletion remains in progress.
+- [Supabase backend](../supabase/README.md) — local configuration, migrations,
+  seed fixtures, and database tests.
+- [Self-hosted Supabase deployment](../deploy/self-hosted/README.md)
+- [Production deployment runbook](../deploy/self-hosted/docs/production-deployment.md)
+
+## Archive
+
+[Historical conversations](archive/README.md) are retained for context only.
+They are unmaintained and non-authoritative; use the active documentation above
+for current project guidance.
+>>>>>>> documentation

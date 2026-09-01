@@ -1,6 +1,9 @@
-# Production Deployment Runbook
+# Notes production deployment runbook
 
-This runbook deploys the self-hosted Supabase stack to a Linux VPS.
+This runbook deploys the Notes self-hosted Supabase backend to a Linux VPS.
+It covers the current Docker Compose path only; it does not deploy a Notes
+client or provide Kubernetes operations. For project-wide platform status, see
+the [deployment overview](../../../docs/deployment.md).
 
 It assumes:
 
@@ -25,6 +28,21 @@ Production uses:
 - `scripts/restore.sh`
 
 The macOS-only `docker-compose.colima.yml` must not be used.
+
+Run the commands in this guide from `deploy/self-hosted/` in a trusted,
+up-to-date checkout of this repository.
+
+## Scope and authoritative references
+
+The local Compose files and scripts above are the project-specific operational
+source of truth. Use Supabase's upstream documentation for generic vendor
+configuration and release information:
+
+- [Self-hosting with Docker](https://supabase.com/docs/guides/self-hosting/docker)
+- [Configure reverse proxy and HTTPS](https://supabase.com/docs/guides/self-hosting/self-hosted-proxy-https)
+- [Self-hosted configuration reference](https://github.com/supabase/supabase/blob/master/docker/CONFIG.md)
+- [Update a self-hosted deployment](https://supabase.com/docs/guides/self-hosting/updating)
+- [Self-hosted Docker changelog](https://github.com/supabase/supabase/blob/master/docker/CHANGELOG.md)
 
 ## Required server resources
 
@@ -73,9 +91,14 @@ The Compose configuration binds ports 5432, 6543 and 8000 to `127.0.0.1`.
 
 ## Production secrets
 
-The server requires `.env.production`.
+Create the untracked production environment file from its repository template:
 
-This file:
+```sh
+cp .env.production.example .env.production
+chmod 600 .env.production
+```
+
+The server requires the resulting `.env.production` file. It:
 
 - must not be committed to Git;
 - must have permissions `600`;
@@ -86,7 +109,6 @@ This file:
 Verify:
 
 ```sh
-chmod 600 .env.production
 git check-ignore .env.production
 ```
 
@@ -110,10 +132,10 @@ Set:
 
 ```dotenv
 SMTP_ADMIN_EMAIL=admin@example.com
-SMTP_HOST=smtp.example.com
+SMTP_HOST=replace-before-deployment
 SMTP_PORT=587
-SMTP_USER=replace-with-real-user
-SMTP_PASS=replace-with-real-password
+SMTP_USER=replace-before-deployment
+SMTP_PASS=replace-before-deployment
 SMTP_SENDER_NAME=Personal Supabase
 
 ENABLE_EMAIL_SIGNUP=true
@@ -270,7 +292,8 @@ Copy the resulting backup off the VPS and verify its checksums.
 
 Before every update:
 
-1. read the Supabase self-hosted changelog;
+1. read the [upstream self-hosted Docker changelog](https://github.com/supabase/supabase/blob/master/docker/CHANGELOG.md)
+   and the [updating guide](https://supabase.com/docs/guides/self-hosting/updating);
 2. create and copy an off-server backup;
 3. review image and configuration changes;
 4. test the update locally;

@@ -2,6 +2,12 @@
 .branches
 .temp
 
+# Local dotenv files. Example contracts remain tracked.
+.env
+.env.*
+!.env.example
+!.env.*.example
+
 # dotenvx
 .env.keys
 .env.local

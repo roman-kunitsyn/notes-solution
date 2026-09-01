@@ -1,9 +1,16 @@
 # Notes CLI
 
-A command-line client for the self-hosted Supabase Notes application.
+The stable reference client for the self-hosted Supabase Notes application.
+Other Notes clients follow its supported contract: authenticated Notes CRUD and
+private file attachments, with Supabase Row Level Security (RLS) enforcing
+per-user access.
 
-It supports authenticated note management and private file attachments while
-Supabase Row Level Security controls access to each user's data.
+## Documentation
+
+- [Repository overview](../../README.md)
+- [Product baseline](../../docs/product.md)
+- [CLI roadmap](ROADMAP.md)
+- [Development guide](../../docs/development.md)
 
 ## Requirements
 
@@ -32,6 +39,15 @@ uv run notes config path
 
 The CLI prompts for the Supabase URL and API key.
 
+The CLI normally reads this saved local configuration. At runtime,
+`SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` override the saved URL and
+publishable (or legacy anonymous) key independently; neither has a code
+default. `NOTES_CLI_CONFIG_DIR` is an optional safe override for the
+platform configuration directory, primarily useful for isolated tests. The
+CLI does not load `.env` files itself; local development tooling may supply
+dotenv values to the process, while explicit runtime variables take precedence.
+Never supply a Supabase secret or service-role key.
+
 For local self-hosting, the URL is normally:
 
 ```text
@@ -49,10 +65,11 @@ uv run notes whoami
 uv run notes logout
 ```
 
-## Notes
+## Notes commands
 
 ```bash
 uv run notes list
+uv run notes list --limit 20
 uv run notes show NOTE_ID
 
 uv run notes create \
@@ -61,7 +78,7 @@ uv run notes create \
 
 uv run notes create --editor
 uv run notes edit NOTE_ID --editor
-uv run notes delete NOTE_ID
+uv run notes delete NOTE_ID --yes
 ```
 
 The editor workflow uses `$VISUAL` or `$EDITOR`. For example:
@@ -93,6 +110,20 @@ Attachments are private. Their Storage paths have this form:
 
 The current bucket accepts PNG, JPEG, PDF, and plain-text files up to 10 MiB.
 
+The supported command surface is:
+
+```text
+notes version
+notes config set|show|path|clear
+notes login|logout|whoami
+notes list|show|create|edit|delete
+notes attach|attachments|download|detach
+```
+
+Tags, search, filtering beyond `list --limit`, alternate output formats, and
+import/export are not current CLI behavior. See the [CLI roadmap](ROADMAP.md)
+for planned work.
+
 ## Tests
 
 Run unit tests:
@@ -116,8 +147,10 @@ uv run ruff check .
 Run everything:
 
 ```bash
+uv run ruff format --check .
 uv run ruff check .
 uv run pytest
+uv run notes --help
 ```
 
 ## Build
