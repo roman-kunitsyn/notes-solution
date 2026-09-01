@@ -1,20 +1,5 @@
 # Notes documentation
 
-<<<<<<< HEAD
-This directory contains repository-level documentation for Notes. Begin with
-the [repository entry point](../README.md) and the canonical
-[product baseline](product.md).
-
-## Active component documentation
-
-- [Notes CLI](../apps/notes-cli/README.md) — functional reference client and
-  current Notes baseline.
-- [Notes Telegram bot](../apps/notes-bot/README.md) — current account-linking
-  client; Notes CRUD is not supported yet.
-- [Self-hosted Supabase with Docker Compose](../deploy/self-hosted/README.md)
-  — local and self-hosted Supabase deployment materials.
-||||||| bdd41ec
-=======
 - [Repository entry point](../README.md)
 - [Repository workflow for contributors and agents](../AGENTS.md)
 - [Development guide](development.md)
@@ -41,4 +26,3 @@ the [repository entry point](../README.md) and the canonical
 [Historical conversations](archive/README.md) are retained for context only.
 They are unmaintained and non-authoritative; use the active documentation above
 for current project guidance.
->>>>>>> documentation
