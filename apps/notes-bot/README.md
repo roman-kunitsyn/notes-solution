@@ -2,8 +2,8 @@
 
 The Notes Telegram bot is the account-linking client for the self-hosted Notes
 product. It can create, list, view, edit, and delete a linked account's notes,
-and list their private attachments, but does not yet provide search, tags,
-attachment upload/download/deletion, or a deployment package.
+list, and deliver their private attachments, but does not yet provide search,
+tags, attachment upload/deletion, or a deployment package.
 
 ## Current functionality
 
@@ -14,6 +14,8 @@ attachment upload/download/deletion, or a deployment package.
 - Views one linked account note with `/note NOTE_ID` in a private chat.
 - Lists private attachments for one linked account note with
   `/attachments NOTE_ID` in a private chat.
+- Delivers one private attachment with `/download NOTE_ID FILENAME` in a
+  private chat. Attachments must not exceed 10 MiB.
 - Creates a linked account note with `/create TITLE`, with optional content on
   the following lines, in a private chat.
 - Replaces a linked account note's title and content with
@@ -32,10 +34,11 @@ The link token is carried in the URL fragment, stored only as a hash, expires,
 and is single-use. The SQLite database is local bot state, not a Notes data
 store.
 
-`/notes`, `/note`, `/attachments`, `/create`, `/edit`, and `/delete` use the
-linked user's refreshed Supabase session and the existing RLS policies. They do
-not persist or mirror Notes data locally. `/attachments` lists metadata only;
-it does not download attachment contents.
+`/notes`, `/note`, `/attachments`, `/download`, `/create`, `/edit`, and
+`/delete` use the linked user's refreshed Supabase session and the existing RLS
+policies. They do not persist or mirror Notes data locally. `/attachments`
+lists metadata only; `/download` holds attachment contents only long enough to
+deliver them to Telegram.
 
 ## Documentation
 

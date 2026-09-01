@@ -13,6 +13,7 @@ from aiogram.exceptions import (
 )
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import (
+    BufferedInputFile,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Message,
@@ -31,10 +32,12 @@ from notes_bot.link_service import LinkingService
 from notes_bot.notes import (
     DEFAULT_LIST_LIMIT,
     AttachmentSummary,
+    AttachmentTooLargeError,
     Note,
     NoteSummary,
     create_note,
     delete_note,
+    download_attachment,
     get_note,
     list_attachments,
     list_notes,
@@ -193,6 +196,20 @@ def parse_note_edit(arguments: str | None) -> tuple[str, str, str] | None:
     return parsed_note_id, title, content
 
 
+def parse_attachment_download(arguments: str | None) -> tuple[str, str] | None:
+    if arguments is None:
+        return None
+
+    note_id, separator, filename = arguments.strip().partition(" ")
+    parsed_note_id = parse_note_id(note_id)
+    normalized_filename = filename.strip() if separator else ""
+
+    if parsed_note_id is None or not normalized_filename:
+        return None
+
+    return parsed_note_id, normalized_filename
+
+
 @router.message(Command("notes"))
 async def handle_notes(
     message: Message,
@@ -311,6 +328,67 @@ async def handle_attachments(
         return
 
     await message.answer(build_attachments_message(attachments))
+
+
+@router.message(Command("download"))
+async def handle_download(
+    message: Message,
+    command: CommandObject,
+    session_manager: SupabaseSessionManager,
+) -> None:
+    if message.chat.type != ChatType.PRIVATE:
+        await message.answer("Notes are available only in a private chat.")
+        return
+
+    if message.from_user is None:
+        await message.answer("Telegram did not provide your user identity.")
+        return
+
+    request = parse_attachment_download(command.args)
+
+    if request is None:
+        await message.answer("Usage: /download NOTE_ID FILENAME")
+        return
+
+    note_id, filename = request
+
+    try:
+        attachment = await download_attachment(
+            session_manager,
+            telegram_user_id=message.from_user.id,
+            note_id=note_id,
+            filename=filename,
+        )
+    except SessionNotLinked:
+        await message.answer("Link your account first using /start.")
+        return
+    except SessionExpired, SessionIdentityMismatch:
+        await message.answer("Your account link has expired. Use /start to link again.")
+        return
+    except AttachmentTooLargeError:
+        await message.answer("That attachment is too large to deliver.")
+        return
+    except ValueError:
+        await message.answer("Usage: /download NOTE_ID FILENAME")
+        return
+    except Exception:  # noqa: BLE001 - Telegram responses must not leak backend errors.
+        await message.answer(
+            "I could not load that attachment right now. Please try again."
+        )
+        return
+
+    if attachment is None:
+        await message.answer("Attachment not found.")
+        return
+
+    try:
+        await message.answer_document(
+            document=BufferedInputFile(attachment.data, filename=attachment.name),
+        )
+    except Exception:  # noqa: BLE001 - Telegram responses must not leak delivery errors.
+        await message.answer(
+            "I could not deliver that attachment right now. Please try again."
+        )
 
 
 @router.message(Command("create"))

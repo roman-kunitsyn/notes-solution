@@ -16,6 +16,6 @@ not currently supported product capabilities.
 - [Roadmap](ROADMAP.md)
 - [Documentation index](docs/README.md)
 - [Notes CLI](apps/notes-cli/README.md)
-- [Notes bot](apps/notes-bot/README.md) — account linking plus private note
-  CRUD for linked accounts.
+- [Notes bot](apps/notes-bot/README.md) — account linking, private note CRUD,
+  and private attachment delivery for linked accounts.
 - [Self-hosted Supabase deployment](deploy/self-hosted/README.md)

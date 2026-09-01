@@ -49,22 +49,31 @@ metadata for a note visible to the linked user. It uses the refreshed session
 and existing Storage RLS policies, and does not download or persist attachment
 contents.
 
-## Next
-
 ### Attachment delivery
 
-Deliver private attachment downloads to the linked user's private chat. Keep
-the existing Storage RLS boundary, avoid persisting attachment content, and
-define Telegram file-size and delivery-error behavior before implementation.
+The private-chat `/download NOTE_ID FILENAME` command downloads an attachment
+through the linked user's refreshed Supabase session and delivers it to
+Telegram. Storage RLS remains the authorization boundary; the bot does not
+persist attachment contents. Delivery is limited to the product's 10 MiB
+attachment maximum, with safe user-facing messages for unavailable or failed
+deliveries.
+
+## Next
+
+### Attachment deletion
+
+Allow a linked user to delete one private attachment from a note in a private
+chat. Keep the existing Storage RLS boundary and require an explicit command
+confirmation before deletion.
 
 ## Later
 
 ### Follow later product capabilities
 
-Consider bot support for attachment upload and deletion, tags, richer search,
-and other client features only after each capability is implemented,
-documented, and stable in the CLI and product baseline. Their future inclusion
-is not a claim of current bot functionality.
+Consider bot support for attachment upload, tags, richer search, and other
+client features only after each capability is implemented, documented, and
+stable in the CLI and product baseline. Their future inclusion is not a claim
+of current bot functionality.
 
 ## Related documentation
 

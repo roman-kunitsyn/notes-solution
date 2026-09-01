@@ -1,18 +1,24 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
+import pytest
+
 from notes_bot.notes import (
     ATTACHMENT_BUCKET,
     DEFAULT_ATTACHMENT_LIST_LIMIT,
     DEFAULT_LIST_LIMIT,
+    MAX_ATTACHMENT_SIZE,
     NOTE_COLUMNS,
     NOTE_DETAIL_COLUMNS,
+    AttachmentTooLargeError,
     create_note,
     delete_note,
+    download_attachment,
     get_note,
     list_attachments,
     list_notes,
     update_note,
+    validate_attachment_filename,
 )
 
 
@@ -415,3 +421,156 @@ async def test_list_attachments_returns_none_when_rls_hides_the_note() -> None:
     assert attachments is None
     client.auth.get_user.assert_not_awaited()
     client.storage.from_.assert_not_called()
+
+
+async def test_download_attachment_uses_linked_session_and_owned_storage_path() -> None:
+    note_query = FakeAttachmentNoteQuery([{"id": "note-1"}])
+    bucket = SimpleNamespace(
+        list=AsyncMock(
+            return_value=[
+                {
+                    "name": "example.txt",
+                    "metadata": {"size": 42},
+                }
+            ]
+        ),
+        download=AsyncMock(return_value=b"private attachment"),
+    )
+    client = SimpleNamespace(
+        table=Mock(return_value=note_query),
+        auth=SimpleNamespace(
+            get_user=AsyncMock(
+                return_value=SimpleNamespace(user=SimpleNamespace(id="user-1"))
+            )
+        ),
+        storage=SimpleNamespace(from_=Mock(return_value=bucket)),
+    )
+    session_manager = SimpleNamespace(
+        authenticated_client=AsyncMock(return_value=client)
+    )
+
+    attachment = await download_attachment(
+        session_manager,
+        telegram_user_id=100,
+        note_id="123e4567-e89b-12d3-a456-426614174000",
+        filename="example.txt",
+    )
+
+    assert attachment is not None
+    assert attachment.name == "example.txt"
+    assert attachment.data == b"private attachment"
+    bucket.list.assert_awaited_once_with(
+        "user-1/123e4567-e89b-12d3-a456-426614174000",
+        {
+            "limit": 1,
+            "offset": 0,
+            "search": "example.txt",
+            "sortBy": {"column": "name", "order": "asc"},
+        },
+    )
+    bucket.download.assert_awaited_once_with(
+        "user-1/123e4567-e89b-12d3-a456-426614174000/example.txt"
+    )
+
+
+async def test_download_attachment_returns_none_without_downloading_missing_object() -> (
+    None
+):
+    note_query = FakeAttachmentNoteQuery([{"id": "note-1"}])
+    bucket = SimpleNamespace(list=AsyncMock(return_value=[]), download=AsyncMock())
+    client = SimpleNamespace(
+        table=Mock(return_value=note_query),
+        auth=SimpleNamespace(
+            get_user=AsyncMock(
+                return_value=SimpleNamespace(user=SimpleNamespace(id="user-1"))
+            )
+        ),
+        storage=SimpleNamespace(from_=Mock(return_value=bucket)),
+    )
+    session_manager = SimpleNamespace(
+        authenticated_client=AsyncMock(return_value=client)
+    )
+
+    attachment = await download_attachment(
+        session_manager,
+        telegram_user_id=100,
+        note_id="123e4567-e89b-12d3-a456-426614174000",
+        filename="missing.txt",
+    )
+
+    assert attachment is None
+    bucket.download.assert_not_awaited()
+
+
+async def test_download_attachment_does_not_access_storage_when_rls_hides_note() -> (
+    None
+):
+    note_query = FakeAttachmentNoteQuery([])
+    client = SimpleNamespace(
+        table=Mock(return_value=note_query),
+        auth=SimpleNamespace(get_user=AsyncMock()),
+        storage=SimpleNamespace(from_=Mock()),
+    )
+    session_manager = SimpleNamespace(
+        authenticated_client=AsyncMock(return_value=client)
+    )
+
+    attachment = await download_attachment(
+        session_manager,
+        telegram_user_id=100,
+        note_id="123e4567-e89b-12d3-a456-426614174000",
+        filename="example.txt",
+    )
+
+    assert attachment is None
+    client.auth.get_user.assert_not_awaited()
+    client.storage.from_.assert_not_called()
+
+
+async def test_download_attachment_rejects_oversized_metadata_without_downloading() -> (
+    None
+):
+    note_query = FakeAttachmentNoteQuery([{"id": "note-1"}])
+    bucket = SimpleNamespace(
+        list=AsyncMock(
+            return_value=[
+                {
+                    "name": "large.pdf",
+                    "metadata": {"size": MAX_ATTACHMENT_SIZE + 1},
+                }
+            ]
+        ),
+        download=AsyncMock(),
+    )
+    client = SimpleNamespace(
+        table=Mock(return_value=note_query),
+        auth=SimpleNamespace(
+            get_user=AsyncMock(
+                return_value=SimpleNamespace(user=SimpleNamespace(id="user-1"))
+            )
+        ),
+        storage=SimpleNamespace(from_=Mock(return_value=bucket)),
+    )
+    session_manager = SimpleNamespace(
+        authenticated_client=AsyncMock(return_value=client)
+    )
+
+    with pytest.raises(AttachmentTooLargeError):
+        await download_attachment(
+            session_manager,
+            telegram_user_id=100,
+            note_id="123e4567-e89b-12d3-a456-426614174000",
+            filename="large.pdf",
+        )
+
+    bucket.download.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "filename", ["", ".", "..", "folder/file.txt", "folder\\file.txt"]
+)
+def test_validate_attachment_filename_rejects_paths_and_empty_names(
+    filename: str,
+) -> None:
+    with pytest.raises(ValueError):
+        validate_attachment_filename(filename)

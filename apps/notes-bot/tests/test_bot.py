@@ -14,16 +14,24 @@ from notes_bot.bot import (
     handle_attachments,
     handle_create,
     handle_delete,
+    handle_download,
     handle_edit,
     handle_note,
     handle_notes,
     handle_start,
     main,
+    parse_attachment_download,
     parse_note_creation,
     parse_note_edit,
     parse_note_id,
 )
-from notes_bot.notes import AttachmentSummary, Note, NoteSummary
+from notes_bot.notes import (
+    AttachmentDownload,
+    AttachmentSummary,
+    AttachmentTooLargeError,
+    Note,
+    NoteSummary,
+)
 from notes_bot.supabase_session import (
     SessionExpired,
     SessionIdentityMismatch,
@@ -59,6 +67,25 @@ def test_build_attachments_message_formats_metadata_and_empty_state() -> None:
         )
         == "Attachments:\n\n42 bytes  2026-09-01T10:00:00+00:00  example.txt"
     )
+
+
+@pytest.mark.parametrize(
+    ("arguments", "expected"),
+    [
+        (
+            "123e4567-e89b-12d3-a456-426614174000 example file.txt",
+            ("123e4567-e89b-12d3-a456-426614174000", "example file.txt"),
+        ),
+        (None, None),
+        ("123e4567-e89b-12d3-a456-426614174000", None),
+        ("not-a-uuid example.txt", None),
+    ],
+)
+def test_parse_attachment_download(
+    arguments: str | None,
+    expected: tuple[str, str] | None,
+) -> None:
+    assert parse_attachment_download(arguments) == expected
 
 
 def test_create_dispatcher_registers_router() -> None:
@@ -689,6 +716,127 @@ async def test_handle_attachments_maps_failures_to_safe_messages(
     )
 
     message.answer.assert_awaited_once_with(expected)
+
+
+async def test_handle_download_delivers_attachment_to_private_chat(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session_manager = SimpleNamespace()
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=100, type=ChatType.PRIVATE),
+        answer=AsyncMock(),
+        answer_document=AsyncMock(),
+    )
+    download_mock = AsyncMock(
+        return_value=AttachmentDownload(name="example.txt", data=b"private attachment")
+    )
+    monkeypatch.setattr("notes_bot.bot.download_attachment", download_mock)
+    note_id = "123e4567-e89b-12d3-a456-426614174000"
+
+    await handle_download(
+        message,
+        SimpleNamespace(args=f"{note_id} example.txt"),
+        session_manager,
+    )
+
+    download_mock.assert_awaited_once_with(
+        session_manager,
+        telegram_user_id=100,
+        note_id=note_id,
+        filename="example.txt",
+    )
+    document = message.answer_document.await_args.kwargs["document"]
+    assert document.filename == "example.txt"
+    assert document.data == b"private attachment"
+    message.answer.assert_not_awaited()
+
+
+async def test_handle_download_rejects_group_chat_without_storage_access(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=-100, type=ChatType.GROUP),
+        answer=AsyncMock(),
+        answer_document=AsyncMock(),
+    )
+    download_mock = AsyncMock()
+    monkeypatch.setattr("notes_bot.bot.download_attachment", download_mock)
+
+    await handle_download(message, SimpleNamespace(args="unused"), SimpleNamespace())
+
+    download_mock.assert_not_awaited()
+    message.answer_document.assert_not_awaited()
+    message.answer.assert_awaited_once_with(
+        "Notes are available only in a private chat."
+    )
+
+
+@pytest.mark.parametrize(
+    ("result", "expected"),
+    [
+        (None, "Attachment not found."),
+        (
+            AttachmentTooLargeError(),
+            "That attachment is too large to deliver.",
+        ),
+        (
+            RuntimeError("storage access token"),
+            "I could not load that attachment right now. Please try again.",
+        ),
+    ],
+)
+async def test_handle_download_maps_unavailable_attachment_and_safe_failures(
+    monkeypatch: pytest.MonkeyPatch,
+    result: AttachmentDownload | Exception | None,
+    expected: str,
+) -> None:
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=100, type=ChatType.PRIVATE),
+        answer=AsyncMock(),
+        answer_document=AsyncMock(),
+    )
+    download_mock = AsyncMock(
+        side_effect=result if isinstance(result, Exception) else None,
+        return_value=None if isinstance(result, Exception) else result,
+    )
+    monkeypatch.setattr("notes_bot.bot.download_attachment", download_mock)
+
+    await handle_download(
+        message,
+        SimpleNamespace(args="123e4567-e89b-12d3-a456-426614174000 example.txt"),
+        SimpleNamespace(),
+    )
+
+    message.answer.assert_awaited_once_with(expected)
+    message.answer_document.assert_not_awaited()
+
+
+async def test_handle_download_hides_telegram_delivery_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    message = SimpleNamespace(
+        from_user=SimpleNamespace(id=100),
+        chat=SimpleNamespace(id=100, type=ChatType.PRIVATE),
+        answer=AsyncMock(),
+        answer_document=AsyncMock(side_effect=RuntimeError("telegram detail")),
+    )
+    monkeypatch.setattr(
+        "notes_bot.bot.download_attachment",
+        AsyncMock(return_value=AttachmentDownload(name="example.txt", data=b"data")),
+    )
+
+    await handle_download(
+        message,
+        SimpleNamespace(args="123e4567-e89b-12d3-a456-426614174000 example.txt"),
+        SimpleNamespace(),
+    )
+
+    message.answer.assert_awaited_once_with(
+        "I could not deliver that attachment right now. Please try again."
+    )
 
 
 async def test_handle_create_creates_a_linked_users_note(
